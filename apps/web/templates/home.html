@@ -1,0 +1,73 @@
+{% extends "layout.html" %} {% block content %}
+<main
+  style="
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: #0f172a;
+    color: white;
+  "
+>
+  <section
+    style="
+      width: min(100%, 520px);
+      padding: 32px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+    "
+  >
+    <p style="margin: 0 0 8px; color: #94a3b8">SisGeS</p>
+    <h1 style="margin: 0 0 12px; font-size: 32px">Alterações</h1>
+    <p style="margin: 0 0 24px; color: #cbd5e1">
+      Sistema principal inicial em operação.
+    </p>
+
+    <div style="display: grid; gap: 12px">
+      <a
+        href="/compilador"
+        style="
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: #2563eb;
+          color: white;
+          text-decoration: none;
+          font-weight: 600;
+          text-align: center;
+        "
+      >
+        Ir para Compilador
+      </a>
+      <a
+        href="/gestao-pessoal"
+        style="
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.08);
+          color: white;
+          text-decoration: none;
+          font-weight: 600;
+          text-align: center;
+        "
+      >
+        Gestão de Pessoal
+      </a>
+      <a
+        href="/declaracoes"
+        style="
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.08);
+          color: white;
+          text-decoration: none;
+          font-weight: 600;
+          text-align: center;
+        "
+      >
+        Ir para Declarações
+      </a>
+    </div>
+  </section>
+</main>
+{% endblock %}

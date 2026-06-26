@@ -1,0 +1,7 @@
+# Endpoints criticos para validacao operacional controlada do SISGES.
+# Um endpoint por linha. Linhas vazias e comentarios iniciados por # sao ignorados.
+/tarefas?limit=180
+/tarefas/resumo
+/gestao-pessoal?view_scope=efetivo_completo&limit=180
+/gestao-pessoal/filtros
+/gestao-pessoal/efetivo-om?om=DIV%20PES&limit=700

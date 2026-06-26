@@ -1,0 +1,93 @@
+{% extends "layout.html" %} {% block extra_head %}
+<link rel="stylesheet" href="/static/css/compilador.css" />
+{% endblock %} {% block content %}
+<main class="compiler-page">
+  <section class="compiler-card">
+    <div class="header-row">
+      <div>
+        <p class="eyebrow">SisGeS</p>
+        <h1>Compilador</h1>
+        <p class="subtitle">
+          Envie um PDF, analise pendências e finalize com segurança.
+        </p>
+      </div>
+      <a class="back-link" href="/">Voltar</a>
+    </div>
+
+    <form id="compilePdfForm" class="compile-form">
+      <label class="file-box">
+        <input id="pdfInput" type="file" accept=".pdf" hidden />
+        <span>Escolher PDF</span>
+        <small id="pdfName">Nenhum arquivo selecionado</small>
+      </label>
+
+      <label class="file-box">
+        <input id="templateInput" type="file" accept=".odt" hidden />
+        <span>Escolher modelo ODT</span>
+        <small id="templateName">Nenhum arquivo selecionado</small>
+      </label>
+
+      <button id="compileBtn" type="submit" class="primary-btn">
+        Compilar PDF
+      </button>
+    </form>
+
+    <p id="statusText" class="status-text"></p>
+
+    <section id="resultSection" class="result-section hidden">
+      <div class="section-block">
+        <h2>Header</h2>
+        <pre id="headerOutput" class="json-box"></pre>
+      </div>
+
+      <div class="section-block">
+        <h2>Parte 1</h2>
+        <pre id="part1Output" class="json-box"></pre>
+      </div>
+
+      <div class="section-block">
+        <h2>Parte 2</h2>
+        <pre id="part2Output" class="json-box"></pre>
+      </div>
+
+      <div class="section-block">
+        <h2>Diagnósticos</h2>
+        <pre id="diagnosticsOutput" class="json-box"></pre>
+      </div>
+    </section>
+
+    <section id="pendingSection" class="pending-section hidden">
+      <div class="section-block">
+        <h2>Pendências canônicas</h2>
+        <p class="section-help">
+          Preencha apenas o que estiver faltando. Você pode usar só nesta
+          compilação ou salvar também na Gestão de Pessoal.
+        </p>
+        <div id="pendingList" class="pending-list"></div>
+        <div class="pending-actions">
+          <button id="resolveBtn" type="button" class="primary-btn">
+            Aplicar pendências
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="finalSection" class="final-section hidden">
+      <div class="section-block success-block">
+        <h2>Compilação pronta</h2>
+        <p id="finalText">
+          As pendências foram resolvidas. O fluxo já pode seguir para a geração
+          final.
+        </p>
+      </div>
+
+      <button id="renderBtn" type="button" class="primary-btn hidden">
+        Gerar ODT
+      </button>
+      <p id="renderStatus" class="status-text"></p>
+    </section>
+  </section>
+</main>
+{% endblock %} {% block extra_scripts %}
+<script src="/static/js/compilador.js"></script>
+{% endblock %}

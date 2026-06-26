@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title or "SisGeS" }}</title>
+  <link rel="icon" href="/static/img/favicon.png" />
+  <link rel="stylesheet" href="/static/css/base.css" />
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  {% block content %}{% endblock %}
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

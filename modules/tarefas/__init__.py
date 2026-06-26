@@ -1,0 +1,2 @@
+"""Modulo operacional de tarefas."""
+

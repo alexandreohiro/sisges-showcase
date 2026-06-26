@@ -1,0 +1,55 @@
+{
+  "schema_version": "sisges-ux-ui-overclock-profile-v1",
+  "base_url": "http://127.0.0.1:3000",
+  "max_page_load_ms": 8000,
+  "pages": [
+    {
+      "path": "/ops-center",
+      "label": "Ops Center",
+      "requires_auth": true,
+      "expected_text": "Ops Center"
+    },
+    {
+      "path": "/gestao-pessoal",
+      "label": "Gestao de Pessoal",
+      "requires_auth": true,
+      "expected_text": "Gestao de Pessoal"
+    },
+    {
+      "path": "/tarefas",
+      "label": "Tarefas",
+      "requires_auth": true,
+      "expected_text": "Tarefas"
+    },
+    {
+      "path": "/compilador?militar_id=16&tipo_documento=folha_alteracao",
+      "label": "Compilador Folha",
+      "requires_auth": true,
+      "expected_text": "Compilador"
+    },
+    {
+      "path": "/folhas",
+      "label": "Folhas",
+      "requires_auth": true,
+      "expected_text": "Folhas"
+    },
+    {
+      "path": "/declaracoes",
+      "label": "Declaracoes",
+      "requires_auth": true,
+      "expected_text": "Declaracoes"
+    },
+    {
+      "path": "/quadro",
+      "label": "Quadro",
+      "requires_auth": true,
+      "expected_text": "Quadro"
+    },
+    {
+      "path": "/notificacoes",
+      "label": "Notificacoes",
+      "requires_auth": true,
+      "expected_text": "Notificacoes"
+    }
+  ]
+}

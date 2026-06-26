@@ -1,0 +1,1 @@
+"""Centro operacional do SISGES."""
