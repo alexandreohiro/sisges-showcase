@@ -66,6 +66,7 @@ class FolhaRead(BaseModel):
 class FolhaActionInput(BaseModel):
     observacao: Optional[str] = None
     assinante_user_id: Optional[str] = None
+    modalidade_assinatura: Optional[str] = None
 
 
 class FolhaDocumentUpdateInput(BaseModel):

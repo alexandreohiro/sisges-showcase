@@ -154,7 +154,7 @@ def test_release_gate_resolves_git_from_windows_localappdata(tmp_path: Path, mon
     git_exe.parent.mkdir(parents=True)
     git_exe.write_text("git", encoding="utf-8")
 
-    monkeypatch.setattr(gate, "resolve_git_path", lambda: None)
+    monkeypatch.setattr(gate.shutil, "which", lambda _name: None)
     monkeypatch.setenv("LOCALAPPDATA", str(localappdata))
     monkeypatch.setenv("USERPROFILE", str(tmp_path / "User"))
 
