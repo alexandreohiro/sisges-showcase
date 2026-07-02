@@ -774,6 +774,8 @@ def table_xml(table: TableBlock) -> str:
 
 
 def times_table_xml(times: TimeSummary) -> str:
+    # Ordem dos títulos fixada pelo Art. 24 da Port. 063-DGP/2020 (Anexo B):
+    # I-TC, II-TNC, III-TSSD, IV-TSCMM, V-TSNR, VI-TTES.
     rows = [
         ("1. TEMPO COMPUTADO DE EFETIVO SERVIÇO (TC)", times.tc),
         ("a) Arregimentado", times.tc_arreg),
@@ -781,8 +783,8 @@ def times_table_xml(times: TimeSummary) -> str:
         ("c) Trânsito", times.tc_transito),
         ("d) Instalação", times.tc_instalacao),
         ("2. TEMPO NÃO COMPUTADO (TNC)", times.tnc),
-        ("3. TEMPO DE SERVIÇO COMPUTÁVEL PARA MEDALHA MILITAR", times.tscmm),
-        ("4. TEMPO DE SERVIÇO EM SITUAÇÕES DIVERSAS (TSSD)", times.tssd),
+        ("3. TEMPO DE SERVIÇO EM SITUAÇÕES DIVERSAS (TSSD)", times.tssd),
+        ("4. TEMPO DE SERVIÇO COMPUTADO PARA MEDALHA MILITAR (TSCMM)", times.tscmm),
         ("5. TEMPO DE SERVIÇO NACIONAL RELEVANTE (TSNR)", times.tsnr),
         ("6. TEMPO TOTAL DE EFETIVO SERVIÇO (TTES)", times.ttes),
     ]
