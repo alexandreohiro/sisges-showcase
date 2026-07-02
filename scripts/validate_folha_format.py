@@ -41,9 +41,9 @@ def validate_format(odt_path: Path, contract_path: Path) -> dict:
 
     plain = _plain(content + "\n" + styles)
     if "SISGES:PRIMEIRA_PARTE" in content:
-        plain = f"{plain} 1Âª PARTE DEZEMBRO: Sem AlteraÃ§Ã£o."
+        plain = f"{plain} 1ª PARTE DEZEMBRO: Sem Alteração."
     if "SISGES:SEGUNDA_PARTE" in content:
-        plain = f"{plain} 2Âª PARTE"
+        plain = f"{plain} 2ª PARTE"
     if "SISGES:ASSINATURA" in content or "{{ASSINATURA_NOME}}" in content:
         plain = f"{plain} S Cmt B Adm QGEx"
     header_in_content = "NOME" in _plain(content) or "SISGES:HEADER" in content

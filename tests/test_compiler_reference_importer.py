@@ -1,4 +1,4 @@
-rom datetime import date
+from datetime import date
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

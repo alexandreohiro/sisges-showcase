@@ -1,4 +1,4 @@
-rom collections.abc import Iterator
+from collections.abc import Iterator
 from types import SimpleNamespace
 import io
 import json

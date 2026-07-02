@@ -59,8 +59,8 @@ def test_classify_identity_year_semester_uses_parent_hint() -> None:
     item = classify_alteracao_row(
         {
             "relative_path": (
-                "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/"
-                "2Â°_Sgt_ALBIGES/0119193050_2016_2_052001 ECT.pdf"
+                "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/"
+                "2°_Sgt_ALBIGES/0119193050_2016_2_052001 ECT.pdf"
             ),
             "extension": ".pdf",
             "size_bytes": "123",
@@ -77,7 +77,7 @@ def test_classify_identity_year_semester_uses_parent_hint() -> None:
 def test_classify_year_from_parent_path_when_filename_has_no_year() -> None:
     item = classify_alteracao_row(
         {
-            "relative_path": "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/2020/MAJ DA SILVA.pdf",
+            "relative_path": "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/2020/MAJ DA SILVA.pdf",
             "extension": ".pdf",
             "size_bytes": "456",
         },
@@ -93,7 +93,7 @@ def test_classify_identity_with_dash_digit_period() -> None:
     item = classify_alteracao_row(
         {
             "relative_path": (
-                "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/"
+                "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/"
                 "2001 a 2021 (scaneadas)/OFICIAIS/001- CEL/CEL- MAURICIO DE SOUZA/"
                 "075917463-4_2008_1_022202.pdf"
             ),
@@ -110,7 +110,7 @@ def test_classify_semester_from_path_folder() -> None:
     item = classify_alteracao_row(
         {
             "relative_path": (
-                "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/"
+                "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/"
                 "Alterações 1° Sem 2020 OFICIAIS/CAP TESTE.pdf"
             ),
             "extension": ".pdf",
@@ -127,7 +127,7 @@ def test_range_folder_does_not_become_document_year() -> None:
     item = classify_alteracao_row(
         {
             "relative_path": (
-                "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/"
+                "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/"
                 "2001 a 2021 (scaneadas)/OFICIAIS/001- CEL/CEL- MAURICIO DE SOUZA/"
                 "20200608153200766.pdf"
             ),
@@ -144,7 +144,7 @@ def test_numeric_scan_uses_parent_identity_without_period() -> None:
     item = classify_alteracao_row(
         {
             "relative_path": (
-                "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/"
+                "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/"
                 "2001 a 2021 (scaneadas)/OFICIAIS/001- CEL/CEL- MAURICIO DE SOUZA/"
                 "20200608153200766.pdf"
             ),
@@ -163,7 +163,7 @@ def test_numeric_scan_uses_parent_identity_without_period() -> None:
 def test_loose_semester_before_year_removal() -> None:
     item = classify_alteracao_row(
         {
-            "relative_path": "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/ESCANEADAS/2Â° SGT EVERALDO 1Â° 2019.pdf",
+            "relative_path": "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/ESCANEADAS/2° SGT EVERALDO 1° 2019.pdf",
             "extension": ".pdf",
             "size_bytes": "789",
         },
@@ -209,14 +209,14 @@ def test_run_assisted_review_groups_by_semester_and_priority(tmp_path) -> None:
         writer.writeheader()
         writer.writerow(
             {
-                "relative_path": "001 - ALTERAÃ‡Ã•ES/2025-07-01_2025-12-31_2sgt_beatriz.pdf",
+                "relative_path": "001 - ALTERAÇÕES/2025-07-01_2025-12-31_2sgt_beatriz.pdf",
                 "extension": ".pdf",
                 "size_bytes": "100",
             },
         )
         writer.writerow(
             {
-                "relative_path": "001 - ALTERAÃ‡Ã•ES/lista.pdf",
+                "relative_path": "001 - ALTERAÇÕES/lista.pdf",
                 "extension": ".pdf",
                 "size_bytes": "200",
             },
@@ -246,7 +246,7 @@ def test_assisted_review_separates_normative_and_timestamp_scans(tmp_path) -> No
         writer.writerow(
             {
                 "relative_path": (
-                    "001 - ALTERAÃ‡Ã•ES/000 - Legislação/"
+                    "001 - ALTERAÇÕES/000 - Legislação/"
                     "FOLHAS DE ALTERAÇÕES - PORTARIA_184-DGP_12-08-2013.pdf"
                 ),
                 "extension": ".pdf",
@@ -256,7 +256,7 @@ def test_assisted_review_separates_normative_and_timestamp_scans(tmp_path) -> No
         writer.writerow(
             {
                 "relative_path": (
-                    "001 - ALTERAÃ‡Ã•ES/000 - ALTERAÃ‡Ã•ES SCANEADAS/"
+                    "001 - ALTERAÇÕES/000 - ALTERAÇÕES SCANEADAS/"
                     "ESCANEADAS/20250130083147500.pdf"
                 ),
                 "extension": ".pdf",

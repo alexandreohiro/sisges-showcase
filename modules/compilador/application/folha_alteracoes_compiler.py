@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -495,14 +495,14 @@ def sisges_flag_values(
         SISGES_FLAG_PERIODO: escape(periodo_curto(options)),
         SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO: escape(graduacao.upper() if graduacao else ""),
         SISGES_FLAG_COMPORTAMENTO: comportamento_text(profile),
-        SISGES_FLAG_DATA_LOCAL: "Quartel-General do ExÃ©rcito â€“ BrasÃ­lia/DF, 1Â° de janeiro de 2026",
+        SISGES_FLAG_DATA_LOCAL: "Quartel-General do Exército – Brasília/DF, 1° de janeiro de 2026",
         SISGES_FLAG_ASSINATURA_NOME: escape(assinatura_nome),
         SISGES_FLAG_ASSINATURA_FUNCAO: escape(assinatura_funcao),
     }
 
 
 def periodo_curto(options: CompilerOptions) -> str:
-    return "1Âº JAN A 30 JUN" if str(options.semestre).strip().startswith("1") else "1Âº JUL A 31 DEZ"
+    return "1º JAN A 30 JUN" if str(options.semestre).strip().startswith("1") else "1º JUL A 31 DEZ"
 
 
 def comportamento_text(profile: SicapexProfile) -> str:
@@ -531,17 +531,17 @@ def sisges_marker_values(
 def header_xml(profile: SicapexProfile, period_label: str, options: CompilerOptions) -> str:
     return "".join(
         [
-            p("MINISTÃ‰RIO DA DEFESA", "Header"),
-            p("EXÃ‰RCITO BRASILEIRO", "Header"),
+            p("MINISTÉRIO DA DEFESA", "Header"),
+            p("EXÉRCITO BRASILEIRO", "Header"),
             p("B ADM QGEX - 001156", "Header"),
             p_xml("NOME: " + nome_completo_xml(profile.nome_completo, profile.nome_guerra), "Standard"),
-            p(f"GRADUAÃ‡ÃƒO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"),
-            p(f"ARMA/QUADRO/SERVIÃ‡O: {profile.qm}", "Standard"),
+            p(f"GRADUAÇÃO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"),
+            p(f"ARMA/QUADRO/SERVIÇO: {profile.qm}", "Standard"),
             p(f"IDENTIDADE: {profile.identidade}", "Standard"),
-            p("FOLHAS DE ALTERAÃ‡Ã•ES", "Title"),
-            p("GUARNIÃ‡ÃƒO DE BRASÃLIA", "Header"),
+            p("FOLHAS DE ALTERAÇÕES", "Title"),
+            p("GUARNIÇÃO DE BRASÍLIA", "Header"),
             p(period_label, "Header"),
-            p("PERÃODO: 1Âº JUL A 31 DEZ" if options.semestre == "2" else "PERÃODO: 1Âº JAN A 30 JUN", "Header"),
+            p("PERÍODO: 1º JUL A 31 DEZ" if options.semestre == "2" else "PERÍODO: 1º JAN A 30 JUN", "Header"),
         ]
     )
 
@@ -549,7 +549,7 @@ def header_xml(profile: SicapexProfile, period_label: str, options: CompilerOpti
 def assinatura_xml(assinatura_nome: str, assinatura_funcao: str) -> str:
     return "".join(
         [
-            p("Quartel-General do ExÃ©rcito - BrasÃ­lia/DF, 1Âº de janeiro de 2026", "Center"),
+            p("Quartel-General do Exército - Brasília/DF, 1º de janeiro de 2026", "Center"),
             p("", "Center"),
             p("", "Center"),
             p(assinatura_nome, "Center"),
@@ -580,7 +580,7 @@ def template_placeholder_values(
         "{{SEGUNDA_PARTE}}": segunda,
         "{{ASSINATURA_NOME}}": escape(assinatura_nome),
         "{{ASSINATURA_FUNCAO}}": escape(assinatura_funcao),
-        "{{DATA_LOCAL}}": "Quartel-General do ExÃ©rcito â€“ BrasÃ­lia/DF, 1Âº de janeiro de 2026",
+        "{{DATA_LOCAL}}": "Quartel-General do Exército – Brasília/DF, 1º de janeiro de 2026",
     }
 
 
@@ -660,18 +660,18 @@ def build_body_xml(
     assinatura_nome, assinatura_funcao = select_assinatura_for_options(profile, options)
     lines: list[str] = []
 
-    lines.append(p("MINISTÃ‰RIO DA DEFESA", "Header"))
-    lines.append(p("EXÃ‰RCITO BRASILEIRO", "Header"))
-    lines.append(p("B ADM QGEX â€“ 001156", "Header"))
+    lines.append(p("MINISTÉRIO DA DEFESA", "Header"))
+    lines.append(p("EXÉRCITO BRASILEIRO", "Header"))
+    lines.append(p("B ADM QGEX – 001156", "Header"))
     lines.append(p_xml("NOME: " + nome_completo_xml(profile.nome_completo, profile.nome_guerra), "Standard"))
-    lines.append(p(f"GRADUAÃ‡ÃƒO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"))
-    lines.append(p(f"ARMA/QUADRO/SERVIÃ‡O: {profile.qm}", "Standard"))
+    lines.append(p(f"GRADUAÇÃO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"))
+    lines.append(p(f"ARMA/QUADRO/SERVIÇO: {profile.qm}", "Standard"))
     lines.append(p(f"IDENTIDADE: {profile.identidade}", "Standard"))
-    lines.append(p("FOLHAS DE ALTERAÃ‡Ã•ES", "Title"))
-    lines.append(p("GUARNIÃ‡ÃƒO DE BRASÃLIA", "Header"))
+    lines.append(p("FOLHAS DE ALTERAÇÕES", "Title"))
+    lines.append(p("GUARNIÇÃO DE BRASÍLIA", "Header"))
     lines.append(p(period_label, "Header"))
-    lines.append(p("PERÃODO: 1Âº JUL A 31 DEZ" if options.semestre == "2" else "PERÃODO: 1Âº JAN A 30 JUN", "Header"))
-    lines.append(p("1Âª PARTE", "Title"))
+    lines.append(p("PERÍODO: 1º JUL A 31 DEZ" if options.semestre == "2" else "PERÍODO: 1º JAN A 30 JUN", "Header"))
+    lines.append(p("1ª PARTE", "Title"))
 
     by_month: dict[str, list[EventBlock]] = {month: [] for month in semester_months(options.semestre)}
     for event in events:
@@ -697,9 +697,9 @@ def build_body_xml(
     if profile.comportamento:
         lines.append(p_xml("COMPORTAMENTO: " + span(profile.comportamento.upper(), "Bold"), "Standard"))
 
-    lines.append(p("2Âª PARTE", "Title"))
+    lines.append(p("2ª PARTE", "Title"))
     lines.append(times_table_xml(times))
-    lines.append(p("Quartel-General do ExÃ©rcito â€“ BrasÃ­lia/DF, 1Âº de janeiro de 2026", "Center"))
+    lines.append(p("Quartel-General do Exército – Brasília/DF, 1º de janeiro de 2026", "Center"))
     lines.append(p("", "Center"))
     lines.append(p("", "Center"))
     lines.append(p(assinatura_nome, "Center"))
@@ -708,7 +708,7 @@ def build_body_xml(
 
 
 def first_part_xml(events: list[EventBlock], options: CompilerOptions) -> str:
-    return p("1Âª PARTE", "Title") + first_part_months_xml(events, options)
+    return p("1ª PARTE", "Title") + first_part_months_xml(events, options)
 
 
 def first_part_months_xml(events: list[EventBlock], options: CompilerOptions) -> str:
@@ -740,7 +740,7 @@ def second_part_xml(profile: SicapexProfile, times: TimeSummary) -> str:
     lines = []
     if profile.comportamento:
         lines.append(comportamento_xml(profile))
-    lines.append(p("2Âª PARTE", "Title"))
+    lines.append(p("2ª PARTE", "Title"))
     lines.append(times_table_xml(times))
     return "".join(lines)
 
@@ -752,7 +752,7 @@ def comportamento_xml(profile: SicapexProfile) -> str:
 
 
 def table_xml(table: TableBlock) -> str:
-    columns = table.columns or ["Designado", "FunÃ§Ã£o", "Ãrea de responsabilidade"]
+    columns = table.columns or ["Designado", "Função", "Área de responsabilidade"]
     rows = table.rows or []
     xml = [f'<table:table table:name="{xml_attr(table.title or "Tabela")}">']
     for _ in columns:
@@ -775,18 +775,18 @@ def table_xml(table: TableBlock) -> str:
 
 def times_table_xml(times: TimeSummary) -> str:
     rows = [
-        ("1. TEMPO COMPUTADO DE EFETIVO SERVIÃ‡O (TC)", times.tc),
+        ("1. TEMPO COMPUTADO DE EFETIVO SERVIÇO (TC)", times.tc),
         ("a) Arregimentado", times.tc_arreg),
-        ("b) NÃ£o arregimentado", times.tc_nao_arreg),
-        ("c) TrÃ¢nsito", times.tc_transito),
-        ("d) InstalaÃ§Ã£o", times.tc_instalacao),
-        ("2. TEMPO NÃƒO COMPUTADO (TNC)", times.tnc),
-        ("3. TEMPO DE SERVIÃ‡O COMPUTÃVEL PARA MEDALHA MILITAR", times.tscmm),
-        ("4. TEMPO DE SERVIÃ‡O EM SITUAÃ‡Ã•ES DIVERSAS (TSSD)", times.tssd),
-        ("5. TEMPO DE SERVIÃ‡O NACIONAL RELEVANTE (TSNR)", times.tsnr),
-        ("6. TEMPO TOTAL DE EFETIVO SERVIÃ‡O (TTES)", times.ttes),
+        ("b) Não arregimentado", times.tc_nao_arreg),
+        ("c) Trânsito", times.tc_transito),
+        ("d) Instalação", times.tc_instalacao),
+        ("2. TEMPO NÃO COMPUTADO (TNC)", times.tnc),
+        ("3. TEMPO DE SERVIÇO COMPUTÁVEL PARA MEDALHA MILITAR", times.tscmm),
+        ("4. TEMPO DE SERVIÇO EM SITUAÇÕES DIVERSAS (TSSD)", times.tssd),
+        ("5. TEMPO DE SERVIÇO NACIONAL RELEVANTE (TSNR)", times.tsnr),
+        ("6. TEMPO TOTAL DE EFETIVO SERVIÇO (TTES)", times.ttes),
     ]
-    return table_xml(TableBlock(title="2Âª PARTE", columns=["Rubrica", "Tempo"], rows=[list(row) for row in rows]))
+    return table_xml(TableBlock(title="2ª PARTE", columns=["Rubrica", "Tempo"], rows=[list(row) for row in rows]))
 
 def build_content_xml(body_xml: str, options: CompilerOptions) -> str:
     return f'''<?xml version="1.0" encoding="UTF-8"?>
