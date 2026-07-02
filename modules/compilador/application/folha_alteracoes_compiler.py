@@ -43,8 +43,10 @@ from modules.compilador.application.odt_template_policy import (
     SISGES_PRIMEIRA_PARTE_MARKER,
     SISGES_SEGUNDA_PARTE_MARKER,
     classify_odt_template,
+    inject_continuation_header_flags,
     odt_has_sisges_marker_in_styles,
     validate_no_leftover_placeholders,
+    validate_rendered_odt,
 )
 from modules.compilador.application.folha_xml_utils import (
     NOISE_FRAGMENTS,
@@ -373,6 +375,7 @@ def render_folha_from_template(
 
     content_xml = entries["content.xml"].decode("utf-8")
     styles_xml = entries.get("styles.xml", b"").decode("utf-8")
+    styles_xml, header_injection_validations = inject_continuation_header_flags(styles_xml)
     content_xml, styles_xml, strategy = inject_template_parts(
         content_xml,
         styles_xml,
@@ -396,8 +399,38 @@ def render_folha_from_template(
         for filename, data in entries.items():
             zout.writestr(filename, data, compress_type=zipfile.ZIP_DEFLATED)
 
-    validations = validate_odt_format(output_odt_path, template_odt_path=template_odt_path)
+    # Gate pós-render (RC3): nenhum ODT sai com header de continuação
+    # apontando para semestre/posto de outro período.
+    posto_continuacao = (profile.graduacao_extenso or profile.graduacao_abrev or "").upper()
+    header_gate = validate_rendered_odt(
+        output_odt_path,
+        period_label=period_label,
+        posto_continuacao=posto_continuacao,
+    )
+    if any(item.startswith("ERR_HEADER_CONTINUACAO_DIVERGENTE") for item in header_gate):
+        output_odt_path.unlink(missing_ok=True)
+        fallback = render_internal_odt(
+            output_path=output_odt_path,
+            body_xml=body_xml,
+            options=options,
+            extra_validations=header_gate,
+            template_provided=True,
+        )
+        fallback.template_provided = True
+        fallback.template_used = False
+        fallback.template_sha256 = sha256_file(template_odt_path)
+        fallback.strategy = "internal_fallback_header_gate"
+        fallback.warnings.extend(header_gate)
+        return fallback
+
+    validations = validate_odt_format(
+        output_odt_path,
+        template_odt_path=template_odt_path,
+        expected_styles_xml=styles_xml,
+    )
     validations.append("OK_TEMPLATE_USED")
+    validations.extend(header_injection_validations)
+    validations.extend(header_gate)
     validations.extend(classification.validations)
     return RenderResult(
         template_provided=True,
@@ -600,7 +633,11 @@ def replace_office_text_body(content_xml: str, body_xml: str) -> str:
     return content_xml[: match.start(2)] + body_xml + content_xml[match.end(2) :]
 
 
-def validate_odt_format(output_odt_path: Path, template_odt_path: Path | None = None) -> list[str]:
+def validate_odt_format(
+    output_odt_path: Path,
+    template_odt_path: Path | None = None,
+    expected_styles_xml: str | None = None,
+) -> list[str]:
     validations: list[str] = []
     try:
         with zipfile.ZipFile(output_odt_path, "r") as zout:
@@ -623,6 +660,11 @@ def validate_odt_format(output_odt_path: Path, template_odt_path: Path | None = 
         if template_styles and styles == template_styles:
             validations.append("OK_STYLES_PRESERVED")
         elif "[SISGES_" in template_styles_text and "[SISGES_" not in styles_text:
+            validations.append("OK_STYLES_PRESERVED")
+            validations.append("OK_HEADER_STYLES_RENDERED")
+        elif expected_styles_xml is not None and styles_text == expected_styles_xml:
+            # Styles do template com headers estáticos sincronizados pelo
+            # compilador (RC3): divergência intencional e controlada.
             validations.append("OK_STYLES_PRESERVED")
             validations.append("OK_HEADER_STYLES_RENDERED")
         else:
