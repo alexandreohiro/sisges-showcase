@@ -108,6 +108,7 @@ from modules.compilador.application.folha_event_validation import (
     repair_tables_inside_event,
     sensitive_event_validations,
     split_embedded_events,
+    validate_data_praca_against_events,
     validate_result,
     _legacy_normalize_qm,
     extract_function_term,
@@ -157,8 +158,10 @@ class FolhaAlteracoesCompiler:
             profile = hydrate_profile_from_context(profile, sicapex_context)
         period_start, period_end, period_label = period_bounds(options.ano, options.semestre)
         events, odt_tables_detected = extract_events_from_bi_source(bi_odt_path, options)
-        events = normalize_semester_events(events, options.semestre)
+        events, period_validations = normalize_semester_events(events, options.semestre, options.ano)
         events, event_validations = normalize_event_blocks(events)
+        event_validations = [*period_validations, *event_validations]
+        event_validations.extend(validate_data_praca_against_events(profile, events))
         sensitive_validations = sensitive_event_validations(events)
         times = calculate_times_from_sicapex(profile, period_start, period_end)
         if sicapex_context:

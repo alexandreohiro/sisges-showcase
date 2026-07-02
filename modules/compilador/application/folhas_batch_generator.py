@@ -202,7 +202,7 @@ class FolhasAlteracoesBatchGenerator:
                 semestre=self.semestre,
                 empty_month_mode=self.empty_month_mode,
             )
-            events = normalize_semester_events(events, self.semestre)
+            events, period_validations = normalize_semester_events(events, self.semestre, self.ano)
             fallback = calculate_times_from_sicapex(profile, period_start, period_end)
             times = calculate_times_from_context(context, period_start, period_end, fallback=fallback)
 
@@ -231,6 +231,7 @@ class FolhasAlteracoesBatchGenerator:
                 events=events,
                 profile=profile,
             )
+            validation.extend(period_validations)
             validation = list(dict.fromkeys(validation))
             justification = build_justification(
                 profile=profile,

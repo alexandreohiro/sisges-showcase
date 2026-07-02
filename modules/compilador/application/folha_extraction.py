@@ -6,6 +6,7 @@ ODT do BI/alteracoes e extracao/parsing de eventos a partir de ODT ou PDF.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
@@ -252,10 +253,11 @@ def read_odt_blocks(path: Path) -> list[dict]:
         content = zin.read("content.xml")
     root = ET.fromstring(content)
     ns = {
+        "office": "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
         "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
         "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
     }
-    body = root.find(".//text:body", ns)
+    body = root.find(".//office:body", ns)
     blocks: list[dict] = []
     if body is None:
         return blocks
