@@ -6,6 +6,7 @@ ODT do BI/alteracoes e extracao/parsing de eventos a partir de ODT ou PDF.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 import re
 import xml.etree.ElementTree as ET
@@ -71,6 +72,8 @@ def parse_sicapex_profile(text: str) -> SicapexProfile:
 
     data_praca_raw = extract_data_praca(joined)
     profile.data_praca = parse_date_br(data_praca_raw) if data_praca_raw else None
+    desligamento_raw = extract_data_desligamento(joined)
+    profile.data_desligamento = parse_date_br(desligamento_raw) if desligamento_raw else None
 
     comportamento = extract_comportamento(joined)
     profile.comportamento = comportamento[0]
@@ -91,6 +94,12 @@ def hydrate_profile_from_context(profile: SicapexProfile, context: dict) -> Sica
     identidade = normalize_space(str(militar.get("identidade") or ""))
     comportamento = normalize_space(str(militar.get("comportamento") or ""))
     data_praca = parse_iso_date(militar.get("data_praca") or context.get("data_praca"))
+    data_desligamento = parse_iso_date(
+        militar.get("data_licenciamento")
+        or militar.get("data_desligamento")
+        or context.get("data_licenciamento")
+        or context.get("data_desligamento")
+    )
 
     if nome_completo:
         profile.nome_completo = nome_completo
@@ -106,6 +115,8 @@ def hydrate_profile_from_context(profile: SicapexProfile, context: dict) -> Sica
         profile.identidade = format_identity(identidade)
     if data_praca:
         profile.data_praca = data_praca
+    if data_desligamento:
+        profile.data_desligamento = data_desligamento
     if comportamento:
         profile.comportamento = comportamento
 
@@ -242,10 +253,11 @@ def read_odt_blocks(path: Path) -> list[dict]:
         content = zin.read("content.xml")
     root = ET.fromstring(content)
     ns = {
+        "office": "urn:oasis:names:tc:opendocument:xmlns:office:1.0",
         "text": "urn:oasis:names:tc:opendocument:xmlns:text:1.0",
         "table": "urn:oasis:names:tc:opendocument:xmlns:table:1.0",
     }
-    body = root.find(".//text:body", ns)
+    body = root.find(".//office:body", ns)
     blocks: list[dict] = []
     if body is None:
         return blocks
@@ -302,6 +314,18 @@ def extract_data_praca(text: str) -> str:
     if match:
         return match.group(1)
     match = re.search(r"\n(\d{2}/\d{2}/\d{4})\s+(?:Normal|EB)", text)
+    return match.group(1) if match else ""
+
+
+def extract_data_desligamento(text: str) -> str:
+    match = re.search(
+        r"Dt Praça\s+Dt Desligamento\s+Tipo de Força\s+Documento\s*\n\s*\d{2}/\d{2}/\d{4}\s+(\d{2}/\d{2}/\d{4})",
+        text,
+        re.I,
+    )
+    if match:
+        return match.group(1)
+    match = re.search(r"\n\d{2}/\d{2}/\d{4}\s+(\d{2}/\d{2}/\d{4})\s+(?:Normal|EB)", text)
     return match.group(1) if match else ""
 
 

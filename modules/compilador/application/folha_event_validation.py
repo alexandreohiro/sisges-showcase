@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import zipfile
 import xml.etree.ElementTree as ET
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,6 +21,7 @@ from modules.compilador.application.folha_xml_utils import (
     clean_noise,
     is_probable_title,
     normalize_space,
+    period_bounds,
     semester_months,
     split_paragraphs,
     strip_accents,
@@ -50,9 +52,156 @@ FUNCTION_TERMS = [
 ]
 
 
-def normalize_semester_events(events: list[EventBlock], semestre: str) -> list[EventBlock]:
+MONTH_ABBREVIATIONS = {
+    "JAN": 1,
+    "FEV": 2,
+    "MAR": 3,
+    "ABR": 4,
+    "MAI": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AGO": 8,
+    "SET": 9,
+    "OUT": 10,
+    "NOV": 11,
+    "DEZ": 12,
+}
+
+DATE_ABBREV_PATTERN = re.compile(
+    r"\b(\d{1,2})\s+(JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)[A-ZÇ]*\.?\s+(\d{2}|\d{4})\b",
+    re.I,
+)
+DATE_NUMERIC_PATTERN = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
+
+
+def _expand_two_digit_year(year: int) -> int:
+    return year + 2000 if year < 100 else year
+
+
+def extract_event_dates(event: EventBlock) -> list[date]:
+    """Datas citadas no titulo, na referencia e no corpo do evento."""
+    text = strip_accents(f"{event.titulo}\n{event.referencia}\n{event.corpo}").upper()
+    found: list[date] = []
+    for match in DATE_ABBREV_PATTERN.finditer(text):
+        day, month_name, year = match.groups()
+        try:
+            found.append(
+                date(_expand_two_digit_year(int(year)), MONTH_ABBREVIATIONS[month_name.upper()], int(day))
+            )
+        except ValueError:
+            continue
+    for match in DATE_NUMERIC_PATTERN.finditer(text):
+        day, month, year = match.groups()
+        try:
+            found.append(date(int(year), int(month), int(day)))
+        except ValueError:
+            continue
+    return found
+
+
+def filter_events_in_period(
+    events: list[EventBlock], start: date, end: date
+) -> tuple[list[EventBlock], list[str]]:
+    """Mantem eventos com alguma data dentro de [start, end].
+
+    Evento sem data extraivel e mantido com WARN_EVENT_SEM_DATA; evento cujas
+    datas estao TODAS fora do periodo e excluido com ERR_EVENT_FORA_DO_PERIODO.
+    Nada e descartado silenciosamente.
+    """
+    kept: list[EventBlock] = []
+    validations: list[str] = []
+    for event in events:
+        dates = extract_event_dates(event)
+        if not dates:
+            kept.append(event)
+            validations.append(f"WARN_EVENT_SEM_DATA:{event.mes}:{event.titulo[:60]}")
+            continue
+        if any(start <= item <= end for item in dates):
+            kept.append(event)
+            continue
+        validations.append(
+            f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:"
+            + ",".join(item.isoformat() for item in dates)
+        )
+    return kept, validations
+
+
+def normalize_semester_events(
+    events: list[EventBlock], semestre: str, ano: int | None = None
+) -> list[EventBlock] | tuple[list[EventBlock], list[str]]:
+    """Filtra eventos pelo periodo da folha.
+
+    Sem `ano` mantem o comportamento legado (filtro apenas pelo nome do mes)
+    e devolve a lista. Com `ano`, tambem valida as datas extraidas contra o
+    periodo real (dia/mes/ANO) e devolve (eventos, validacoes) — um evento de
+    "17 JAN 24" nao pode entrar na folha do 1o semestre de 2023.
+    """
     months = semester_months(semestre)
-    return [event for event in events if event.mes in months]
+    validations: list[str] = []
+    in_semester: list[EventBlock] = []
+    for event in events:
+        if event.mes in months:
+            in_semester.append(event)
+        else:
+            validations.append(f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}")
+    if ano is None:
+        return in_semester
+    start, end, _label = period_bounds(ano, semestre)
+    kept, date_validations = filter_events_in_period(in_semester, start, end)
+    validations.extend(date_validations)
+    return kept, list(dict.fromkeys(validations))
+
+
+CONVOCACAO_KEYWORDS = ("CONVOCA", "INCORPORA", "INCLUS", "PRACA")
+A_CONTAR_DE_PATTERN = re.compile(
+    r"A\s+CONTAR\s+DE\s+(\d{1,2}(?:\s+(?:JAN|FEV|MAR|ABR|MAI|JUN|JUL|AGO|SET|OUT|NOV|DEZ)[A-ZÇ]*\.?\s+(?:\d{2}|\d{4})|/\d{1,2}/\d{4}))",
+    re.I,
+)
+
+
+def validate_data_praca_against_events(profile, events: list[EventBlock]) -> list[str]:
+    """RC4 — data_praca deve casar com o evento de convocacao/inclusao.
+
+    Quando o corpus traz um evento de convocacao com "a contar de <data>",
+    a data de praca cadastrada precisa coincidir; divergencia gera
+    WARN_DATA_PRACA_DIVERGENTE para revisao humana (nao bloqueia a folha).
+    """
+    if not profile.data_praca:
+        return []
+    validations: list[str] = []
+    for event in events:
+        text = strip_accents(f"{event.titulo}\n{event.corpo}").upper()
+        if not any(keyword in text for keyword in CONVOCACAO_KEYWORDS):
+            continue
+        match = A_CONTAR_DE_PATTERN.search(text)
+        if not match:
+            continue
+        target = _parse_single_date(match.group(1))
+        if target and profile.data_praca != target:
+            validations.append(
+                "WARN_DATA_PRACA_DIVERGENTE:"
+                f"cadastro={profile.data_praca.isoformat()}:"
+                f"evento={target.isoformat()}"
+            )
+    return list(dict.fromkeys(validations))
+
+
+def _parse_single_date(fragment: str) -> date | None:
+    match = DATE_ABBREV_PATTERN.search(fragment)
+    if match:
+        day, month_name, year = match.groups()
+        try:
+            return date(_expand_two_digit_year(int(year)), MONTH_ABBREVIATIONS[month_name.upper()], int(day))
+        except ValueError:
+            return None
+    match = DATE_NUMERIC_PATTERN.search(fragment)
+    if match:
+        day, month, year = match.groups()
+        try:
+            return date(int(year), int(month), int(day))
+        except ValueError:
+            return None
+    return None
 
 
 def normalize_event_blocks(events: list[EventBlock]) -> tuple[list[EventBlock], list[str]]:

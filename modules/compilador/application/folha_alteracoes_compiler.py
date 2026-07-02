@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
@@ -43,8 +43,10 @@ from modules.compilador.application.odt_template_policy import (
     SISGES_PRIMEIRA_PARTE_MARKER,
     SISGES_SEGUNDA_PARTE_MARKER,
     classify_odt_template,
+    inject_continuation_header_flags,
     odt_has_sisges_marker_in_styles,
     validate_no_leftover_placeholders,
+    validate_rendered_odt,
 )
 from modules.compilador.application.folha_xml_utils import (
     NOISE_FRAGMENTS,
@@ -108,6 +110,7 @@ from modules.compilador.application.folha_event_validation import (
     repair_tables_inside_event,
     sensitive_event_validations,
     split_embedded_events,
+    validate_data_praca_against_events,
     validate_result,
     _legacy_normalize_qm,
     extract_function_term,
@@ -157,8 +160,10 @@ class FolhaAlteracoesCompiler:
             profile = hydrate_profile_from_context(profile, sicapex_context)
         period_start, period_end, period_label = period_bounds(options.ano, options.semestre)
         events, odt_tables_detected = extract_events_from_bi_source(bi_odt_path, options)
-        events = normalize_semester_events(events, options.semestre)
+        events, period_validations = normalize_semester_events(events, options.semestre, options.ano)
         events, event_validations = normalize_event_blocks(events)
+        event_validations = [*period_validations, *event_validations]
+        event_validations.extend(validate_data_praca_against_events(profile, events))
         sensitive_validations = sensitive_event_validations(events)
         times = calculate_times_from_sicapex(profile, period_start, period_end)
         if sicapex_context:
@@ -370,6 +375,7 @@ def render_folha_from_template(
 
     content_xml = entries["content.xml"].decode("utf-8")
     styles_xml = entries.get("styles.xml", b"").decode("utf-8")
+    styles_xml, header_injection_validations = inject_continuation_header_flags(styles_xml)
     content_xml, styles_xml, strategy = inject_template_parts(
         content_xml,
         styles_xml,
@@ -393,8 +399,38 @@ def render_folha_from_template(
         for filename, data in entries.items():
             zout.writestr(filename, data, compress_type=zipfile.ZIP_DEFLATED)
 
-    validations = validate_odt_format(output_odt_path, template_odt_path=template_odt_path)
+    # Gate pós-render (RC3): nenhum ODT sai com header de continuação
+    # apontando para semestre/posto de outro período.
+    posto_continuacao = (profile.graduacao_extenso or profile.graduacao_abrev or "").upper()
+    header_gate = validate_rendered_odt(
+        output_odt_path,
+        period_label=period_label,
+        posto_continuacao=posto_continuacao,
+    )
+    if any(item.startswith("ERR_HEADER_CONTINUACAO_DIVERGENTE") for item in header_gate):
+        output_odt_path.unlink(missing_ok=True)
+        fallback = render_internal_odt(
+            output_path=output_odt_path,
+            body_xml=body_xml,
+            options=options,
+            extra_validations=header_gate,
+            template_provided=True,
+        )
+        fallback.template_provided = True
+        fallback.template_used = False
+        fallback.template_sha256 = sha256_file(template_odt_path)
+        fallback.strategy = "internal_fallback_header_gate"
+        fallback.warnings.extend(header_gate)
+        return fallback
+
+    validations = validate_odt_format(
+        output_odt_path,
+        template_odt_path=template_odt_path,
+        expected_styles_xml=styles_xml,
+    )
     validations.append("OK_TEMPLATE_USED")
+    validations.extend(header_injection_validations)
+    validations.extend(header_gate)
     validations.extend(classification.validations)
     return RenderResult(
         template_provided=True,
@@ -495,14 +531,14 @@ def sisges_flag_values(
         SISGES_FLAG_PERIODO: escape(periodo_curto(options)),
         SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO: escape(graduacao.upper() if graduacao else ""),
         SISGES_FLAG_COMPORTAMENTO: comportamento_text(profile),
-        SISGES_FLAG_DATA_LOCAL: "Quartel-General do ExÃ©rcito â€“ BrasÃ­lia/DF, 1Â° de janeiro de 2026",
+        SISGES_FLAG_DATA_LOCAL: "Quartel-General do Exército – Brasília/DF, 1° de janeiro de 2026",
         SISGES_FLAG_ASSINATURA_NOME: escape(assinatura_nome),
         SISGES_FLAG_ASSINATURA_FUNCAO: escape(assinatura_funcao),
     }
 
 
 def periodo_curto(options: CompilerOptions) -> str:
-    return "1Âº JAN A 30 JUN" if str(options.semestre).strip().startswith("1") else "1Âº JUL A 31 DEZ"
+    return "1º JAN A 30 JUN" if str(options.semestre).strip().startswith("1") else "1º JUL A 31 DEZ"
 
 
 def comportamento_text(profile: SicapexProfile) -> str:
@@ -531,17 +567,17 @@ def sisges_marker_values(
 def header_xml(profile: SicapexProfile, period_label: str, options: CompilerOptions) -> str:
     return "".join(
         [
-            p("MINISTÃ‰RIO DA DEFESA", "Header"),
-            p("EXÃ‰RCITO BRASILEIRO", "Header"),
+            p("MINISTÉRIO DA DEFESA", "Header"),
+            p("EXÉRCITO BRASILEIRO", "Header"),
             p("B ADM QGEX - 001156", "Header"),
             p_xml("NOME: " + nome_completo_xml(profile.nome_completo, profile.nome_guerra), "Standard"),
-            p(f"GRADUAÃ‡ÃƒO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"),
-            p(f"ARMA/QUADRO/SERVIÃ‡O: {profile.qm}", "Standard"),
+            p(f"GRADUAÇÃO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"),
+            p(f"ARMA/QUADRO/SERVIÇO: {profile.qm}", "Standard"),
             p(f"IDENTIDADE: {profile.identidade}", "Standard"),
-            p("FOLHAS DE ALTERAÃ‡Ã•ES", "Title"),
-            p("GUARNIÃ‡ÃƒO DE BRASÃLIA", "Header"),
+            p("FOLHAS DE ALTERAÇÕES", "Title"),
+            p("GUARNIÇÃO DE BRASÍLIA", "Header"),
             p(period_label, "Header"),
-            p("PERÃODO: 1Âº JUL A 31 DEZ" if options.semestre == "2" else "PERÃODO: 1Âº JAN A 30 JUN", "Header"),
+            p("PERÍODO: 1º JUL A 31 DEZ" if options.semestre == "2" else "PERÍODO: 1º JAN A 30 JUN", "Header"),
         ]
     )
 
@@ -549,7 +585,7 @@ def header_xml(profile: SicapexProfile, period_label: str, options: CompilerOpti
 def assinatura_xml(assinatura_nome: str, assinatura_funcao: str) -> str:
     return "".join(
         [
-            p("Quartel-General do ExÃ©rcito - BrasÃ­lia/DF, 1Âº de janeiro de 2026", "Center"),
+            p("Quartel-General do Exército - Brasília/DF, 1º de janeiro de 2026", "Center"),
             p("", "Center"),
             p("", "Center"),
             p(assinatura_nome, "Center"),
@@ -580,7 +616,7 @@ def template_placeholder_values(
         "{{SEGUNDA_PARTE}}": segunda,
         "{{ASSINATURA_NOME}}": escape(assinatura_nome),
         "{{ASSINATURA_FUNCAO}}": escape(assinatura_funcao),
-        "{{DATA_LOCAL}}": "Quartel-General do ExÃ©rcito â€“ BrasÃ­lia/DF, 1Âº de janeiro de 2026",
+        "{{DATA_LOCAL}}": "Quartel-General do Exército – Brasília/DF, 1º de janeiro de 2026",
     }
 
 
@@ -597,7 +633,11 @@ def replace_office_text_body(content_xml: str, body_xml: str) -> str:
     return content_xml[: match.start(2)] + body_xml + content_xml[match.end(2) :]
 
 
-def validate_odt_format(output_odt_path: Path, template_odt_path: Path | None = None) -> list[str]:
+def validate_odt_format(
+    output_odt_path: Path,
+    template_odt_path: Path | None = None,
+    expected_styles_xml: str | None = None,
+) -> list[str]:
     validations: list[str] = []
     try:
         with zipfile.ZipFile(output_odt_path, "r") as zout:
@@ -620,6 +660,11 @@ def validate_odt_format(output_odt_path: Path, template_odt_path: Path | None = 
         if template_styles and styles == template_styles:
             validations.append("OK_STYLES_PRESERVED")
         elif "[SISGES_" in template_styles_text and "[SISGES_" not in styles_text:
+            validations.append("OK_STYLES_PRESERVED")
+            validations.append("OK_HEADER_STYLES_RENDERED")
+        elif expected_styles_xml is not None and styles_text == expected_styles_xml:
+            # Styles do template com headers estáticos sincronizados pelo
+            # compilador (RC3): divergência intencional e controlada.
             validations.append("OK_STYLES_PRESERVED")
             validations.append("OK_HEADER_STYLES_RENDERED")
         else:
@@ -660,18 +705,18 @@ def build_body_xml(
     assinatura_nome, assinatura_funcao = select_assinatura_for_options(profile, options)
     lines: list[str] = []
 
-    lines.append(p("MINISTÃ‰RIO DA DEFESA", "Header"))
-    lines.append(p("EXÃ‰RCITO BRASILEIRO", "Header"))
-    lines.append(p("B ADM QGEX â€“ 001156", "Header"))
+    lines.append(p("MINISTÉRIO DA DEFESA", "Header"))
+    lines.append(p("EXÉRCITO BRASILEIRO", "Header"))
+    lines.append(p("B ADM QGEX – 001156", "Header"))
     lines.append(p_xml("NOME: " + nome_completo_xml(profile.nome_completo, profile.nome_guerra), "Standard"))
-    lines.append(p(f"GRADUAÃ‡ÃƒO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"))
-    lines.append(p(f"ARMA/QUADRO/SERVIÃ‡O: {profile.qm}", "Standard"))
+    lines.append(p(f"GRADUAÇÃO: {profile.graduacao_extenso or profile.graduacao_abrev}", "Standard"))
+    lines.append(p(f"ARMA/QUADRO/SERVIÇO: {profile.qm}", "Standard"))
     lines.append(p(f"IDENTIDADE: {profile.identidade}", "Standard"))
-    lines.append(p("FOLHAS DE ALTERAÃ‡Ã•ES", "Title"))
-    lines.append(p("GUARNIÃ‡ÃƒO DE BRASÃLIA", "Header"))
+    lines.append(p("FOLHAS DE ALTERAÇÕES", "Title"))
+    lines.append(p("GUARNIÇÃO DE BRASÍLIA", "Header"))
     lines.append(p(period_label, "Header"))
-    lines.append(p("PERÃODO: 1Âº JUL A 31 DEZ" if options.semestre == "2" else "PERÃODO: 1Âº JAN A 30 JUN", "Header"))
-    lines.append(p("1Âª PARTE", "Title"))
+    lines.append(p("PERÍODO: 1º JUL A 31 DEZ" if options.semestre == "2" else "PERÍODO: 1º JAN A 30 JUN", "Header"))
+    lines.append(p("1ª PARTE", "Title"))
 
     by_month: dict[str, list[EventBlock]] = {month: [] for month in semester_months(options.semestre)}
     for event in events:
@@ -697,9 +742,9 @@ def build_body_xml(
     if profile.comportamento:
         lines.append(p_xml("COMPORTAMENTO: " + span(profile.comportamento.upper(), "Bold"), "Standard"))
 
-    lines.append(p("2Âª PARTE", "Title"))
+    lines.append(p("2ª PARTE", "Title"))
     lines.append(times_table_xml(times))
-    lines.append(p("Quartel-General do ExÃ©rcito â€“ BrasÃ­lia/DF, 1Âº de janeiro de 2026", "Center"))
+    lines.append(p("Quartel-General do Exército – Brasília/DF, 1º de janeiro de 2026", "Center"))
     lines.append(p("", "Center"))
     lines.append(p("", "Center"))
     lines.append(p(assinatura_nome, "Center"))
@@ -708,7 +753,7 @@ def build_body_xml(
 
 
 def first_part_xml(events: list[EventBlock], options: CompilerOptions) -> str:
-    return p("1Âª PARTE", "Title") + first_part_months_xml(events, options)
+    return p("1ª PARTE", "Title") + first_part_months_xml(events, options)
 
 
 def first_part_months_xml(events: list[EventBlock], options: CompilerOptions) -> str:
@@ -740,7 +785,7 @@ def second_part_xml(profile: SicapexProfile, times: TimeSummary) -> str:
     lines = []
     if profile.comportamento:
         lines.append(comportamento_xml(profile))
-    lines.append(p("2Âª PARTE", "Title"))
+    lines.append(p("2ª PARTE", "Title"))
     lines.append(times_table_xml(times))
     return "".join(lines)
 
@@ -752,7 +797,7 @@ def comportamento_xml(profile: SicapexProfile) -> str:
 
 
 def table_xml(table: TableBlock) -> str:
-    columns = table.columns or ["Designado", "FunÃ§Ã£o", "Ãrea de responsabilidade"]
+    columns = table.columns or ["Designado", "Função", "Área de responsabilidade"]
     rows = table.rows or []
     xml = [f'<table:table table:name="{xml_attr(table.title or "Tabela")}">']
     for _ in columns:
@@ -774,19 +819,21 @@ def table_xml(table: TableBlock) -> str:
 
 
 def times_table_xml(times: TimeSummary) -> str:
+    # Ordem dos títulos fixada pelo Art. 24 da Port. 063-DGP/2020 (Anexo B):
+    # I-TC, II-TNC, III-TSSD, IV-TSCMM, V-TSNR, VI-TTES.
     rows = [
-        ("1. TEMPO COMPUTADO DE EFETIVO SERVIÃ‡O (TC)", times.tc),
+        ("1. TEMPO COMPUTADO DE EFETIVO SERVIÇO (TC)", times.tc),
         ("a) Arregimentado", times.tc_arreg),
-        ("b) NÃ£o arregimentado", times.tc_nao_arreg),
-        ("c) TrÃ¢nsito", times.tc_transito),
-        ("d) InstalaÃ§Ã£o", times.tc_instalacao),
-        ("2. TEMPO NÃƒO COMPUTADO (TNC)", times.tnc),
-        ("3. TEMPO DE SERVIÃ‡O COMPUTÃVEL PARA MEDALHA MILITAR", times.tscmm),
-        ("4. TEMPO DE SERVIÃ‡O EM SITUAÃ‡Ã•ES DIVERSAS (TSSD)", times.tssd),
-        ("5. TEMPO DE SERVIÃ‡O NACIONAL RELEVANTE (TSNR)", times.tsnr),
-        ("6. TEMPO TOTAL DE EFETIVO SERVIÃ‡O (TTES)", times.ttes),
+        ("b) Não arregimentado", times.tc_nao_arreg),
+        ("c) Trânsito", times.tc_transito),
+        ("d) Instalação", times.tc_instalacao),
+        ("2. TEMPO NÃO COMPUTADO (TNC)", times.tnc),
+        ("3. TEMPO DE SERVIÇO EM SITUAÇÕES DIVERSAS (TSSD)", times.tssd),
+        ("4. TEMPO DE SERVIÇO COMPUTADO PARA MEDALHA MILITAR (TSCMM)", times.tscmm),
+        ("5. TEMPO DE SERVIÇO NACIONAL RELEVANTE (TSNR)", times.tsnr),
+        ("6. TEMPO TOTAL DE EFETIVO SERVIÇO (TTES)", times.ttes),
     ]
-    return table_xml(TableBlock(title="2Âª PARTE", columns=["Rubrica", "Tempo"], rows=[list(row) for row in rows]))
+    return table_xml(TableBlock(title="2ª PARTE", columns=["Rubrica", "Tempo"], rows=[list(row) for row in rows]))
 
 def build_content_xml(body_xml: str, options: CompilerOptions) -> str:
     return f'''<?xml version="1.0" encoding="UTF-8"?>

@@ -91,7 +91,7 @@ def _normalize_label(value: str) -> str:
 
 def _normalize_text(value: str) -> str:
     cleaned = value
-    cleaned = cleaned.replace("Â°", "°").replace("Âº", "º")
+    cleaned = cleaned.replace("°", "°").replace("º", "º")
     cleaned = cleaned.replace("_", " ").replace("-", " ")
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned

@@ -67,6 +67,13 @@ PDF_UPLOAD_POLICY = UploadPolicy(
     magic_kinds=frozenset({MAGIC_PDF}),
 )
 
+FOLHA_PDF_UPLOAD_POLICY = UploadPolicy(
+    allowed_extensions=frozenset({".pdf"}),
+    allowed_mime_types=frozenset({"application/pdf"}),
+    max_bytes=10 * 1024 * 1024,
+    magic_kinds=frozenset({MAGIC_PDF}),
+)
+
 ODT_UPLOAD_POLICY = UploadPolicy(
     allowed_extensions=frozenset({".odt"}),
     allowed_mime_types=frozenset(

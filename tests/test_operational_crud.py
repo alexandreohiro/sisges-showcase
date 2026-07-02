@@ -176,15 +176,15 @@ def test_militar_list_uses_military_hierarchy_with_command_precedence(
     db_session.add_all(
         [
             MilitarModel(
-                nome_completo="HOTEL CORONEL SILVA",
-                nome_guerra="HOTEL",
+                nome_completo="NILTON CORONEL SILVA",
+                nome_guerra="NILTON",
                 posto_graduacao="Cel",
                 identidade="1111111111",
                 ativo=True,
             ),
             MilitarModel(
-                nome_completo="INDIA CORONEL LIMA",
-                nome_guerra="INDIA",
+                nome_completo="ROGERIO CORONEL LIMA",
+                nome_guerra="ROGERIO",
                 posto_graduacao="Cel",
                 identidade="2222222222",
                 ativo=True,

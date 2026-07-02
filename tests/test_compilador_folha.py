@@ -1,4 +1,4 @@
-rom collections.abc import Iterator
+from collections.abc import Iterator
 from datetime import date
 from types import SimpleNamespace
 import io
@@ -154,7 +154,7 @@ def test_hydrate_profile_from_context_uses_persisted_personnel_data():
     assert result.graduacao_abrev == "3º Sgt"
     assert result.graduacao_extenso == "Terceiro-Sargento"
     assert result.qm == "5310 - QMS - INTENDÊNCIA"
-    assert result.identidade == "010064645-4"
+    assert result.identidade == "999000000-1"
     assert result.data_praca == date(2018, 4, 9)
 
 

@@ -1,4 +1,4 @@
-rom __future__ import annotations
+from __future__ import annotations
 
 from datetime import date
 import io
@@ -141,13 +141,13 @@ def test_secretaria_repairs_title_glued_to_previous_event_body():
             EventBlock(
                 mes="JULHO",
                 titulo="APRESENTACAO",
-                referencia="- a 1, BI NÂº 1 :",
+                referencia="- a 1, BI Nº 1 :",
                 corpo="Texto do primeiro evento. TESTE DE AVALIACAO FISICA - Transcricao",
             ),
             EventBlock(
                 mes="JULHO",
                 titulo="",
-                referencia="- a 2, BI NÂº 2 :",
+                referencia="- a 2, BI Nº 2 :",
                 corpo="Texto do segundo evento.",
             ),
         ]
