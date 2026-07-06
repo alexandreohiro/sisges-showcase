@@ -1,4 +1,4 @@
-rom modules.gestao_pessoal.importadores.sicapex.parser import (
+from modules.gestao_pessoal.importadores.sicapex.parser import (
     parse_sicapex_text,
     scrub_sensitive,
 )

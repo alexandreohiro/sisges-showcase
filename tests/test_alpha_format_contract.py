@@ -111,7 +111,9 @@ def test_table_filtered_policy_and_beneficiary_filter_are_explainable():
 def test_segunda_parte_order_is_contractual():
     xml = _times_xml()
 
-    positions = [xml.index(token) for token in ("TC)", "TNC)", "MEDALHA", "TSSD", "TSNR", "TTES")]
+    # Ordem normativa do Art. 24 da Port. 063-DGP/2020 (Anexo B):
+    # I-TC, II-TNC, III-TSSD, IV-TSCMM (medalha), V-TSNR, VI-TTES.
+    positions = [xml.index(token) for token in ("TC)", "TNC)", "TSSD", "MEDALHA", "TSNR", "TTES")]
     assert positions == sorted(positions)
 
 

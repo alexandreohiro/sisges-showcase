@@ -25,6 +25,7 @@ from modules.folhas.application.schemas import (
     FolhaEventoRead,
     FolhaWorkflowRead,
 )
+from modules.folhas.domain.validacoes import validar_part2_schema
 from modules.folhas.infrastructure.repository import FolhasRepository
 from modules.documents.application.services import DocumentService
 from modules.tarefas.application.schemas import TarefaCreate
@@ -580,12 +581,33 @@ class FolhasService:
             return str(metadata.get("cpf_masked") or "").endswith(cpf_digits)
         return False
 
+    def update_folha(self, folha_id: int, payload) -> FolhaAlteracaoModel | None:
+        folha = self.folhas_repo.get(folha_id)
+        if not folha:
+            return None
+        data = payload.model_dump(exclude_unset=True)
+        if data.get("part2_json") is not None:
+            erros = validar_part2_schema(data["part2_json"])
+            if erros:
+                raise ValueError(erros[0])
+        for key, value in data.items():
+            setattr(folha, key, value)
+        self.db.add(folha)
+        self.db.flush()
+        return folha
+
     def liberar_ciencia(
         self,
         folha_id: int,
         payload: FolhaActionInput,
         actor_user_id: str | None,
     ) -> FolhaAlteracaoModel:
+        # Gate de completude: sem 2a Parte estruturalmente valida a folha
+        # nao pode seguir para ciencia do militar (Port. 063-DGP/2020 Art. 24).
+        folha = self._get_or_raise(folha_id)
+        erros = validar_part2_schema(folha.part2_json)
+        if erros:
+            raise ValueError(f"Folha sem 2a Parte valida para liberar ciencia: {erros[0]}")
         return self._transition(
             folha_id,
             action="liberar_ciencia",
@@ -649,6 +671,11 @@ class FolhasService:
         actor_user_id = _actor_id(user)
         if signer_id and signer_id != actor_user_id and not _is_dev(user):
             raise PermissionError("Folha atribuida a outro assinante.")
+        workflow_updates = (
+            {"modalidade_assinatura": payload.modalidade_assinatura}
+            if payload.modalidade_assinatura
+            else None
+        )
         return self._transition(
             folha_id,
             action="assinar",
@@ -656,6 +683,7 @@ class FolhasService:
             actor_user_id=actor_user_id,
             observacao=payload.observacao,
             allowed_statuses={STATUS_AGUARDANDO_ASSINATURA},
+            workflow_updates=workflow_updates,
         )
 
     def _get_or_raise(self, folha_id: int) -> FolhaAlteracaoModel:

@@ -205,9 +205,9 @@ def test_clean_parte1_lines_removes_multiline_pdf_headers() -> None:
     raw = "\n".join(
         [
             "AGOSTO:",
-            "do 1Âº Sgt BELTRANO DE SOUZA",
-            "2Âº Semestre de 2025",
-            "CP: PERÃODO: 01/07/2025 a 31/12/2025",
+            "do 1º Sgt BELTRANO DE SOUZA",
+            "2º Semestre de 2025",
+            "CP: PERÍODO: 01/07/2025 a 31/12/2025",
             "Evento valido",
         ]
     )
@@ -226,7 +226,7 @@ def test_strip_invalid_xml_chars() -> None:
 
 def test_remove_inline_pdf_page_header_from_body_line() -> None:
     clean, removed = remove_inline_pdf_headers(
-        "Texto antes do 1Âº Sgt MORAES CP: PERÃODO: 01/07/2025 a 31/12/2025 texto depois"
+        "Texto antes do 1º Sgt MORAES CP: PERÍODO: 01/07/2025 a 31/12/2025 texto depois"
     )
 
     assert removed == 1
@@ -238,16 +238,16 @@ def test_split_embedded_event_title_from_body_tail() -> None:
     lines, warnings = split_embedded_event_titles(
         [
             "Texto do evento anterior. RESSARCIMENTO DE APOIO -",
-            "SolicitaÃ§Ã£o",
-            "- a 28, BAR NÂº 41:",
+            "Solicitação",
+            "- a 28, BAR Nº 41:",
             "Corpo novo",
         ]
     )
 
     assert lines == [
         "Texto do evento anterior.",
-        "RESSARCIMENTO DE APOIO - SolicitaÃ§Ã£o",
-        "- a 28, BAR NÂº 41:",
+        "RESSARCIMENTO DE APOIO - Solicitação",
+        "- a 28, BAR Nº 41:",
         "Corpo novo",
     ]
     assert warnings == ["OK_EVENT_TITLE_SPLIT_RECOVERED:1"]
@@ -257,16 +257,16 @@ def test_split_embedded_event_title_prefix_from_body_tail() -> None:
     lines, warnings = split_embedded_event_titles(
         [
             "Texto do evento anterior. RESSARCIMENTO",
-            "DE APOIO Ã€ NECESSIDADE DE ENSINO ESPECIALIZADO - SolicitaÃ§Ã£o",
-            "- a 28, BAR NÂº 41:",
+            "DE APOIO À NECESSIDADE DE ENSINO ESPECIALIZADO - Solicitação",
+            "- a 28, BAR Nº 41:",
             "Corpo novo",
         ]
     )
 
     assert lines == [
         "Texto do evento anterior.",
-        "RESSARCIMENTO DE APOIO Ã€ NECESSIDADE DE ENSINO ESPECIALIZADO - SolicitaÃ§Ã£o",
-        "- a 28, BAR NÂº 41:",
+        "RESSARCIMENTO DE APOIO À NECESSIDADE DE ENSINO ESPECIALIZADO - Solicitação",
+        "- a 28, BAR Nº 41:",
         "Corpo novo",
     ]
     assert warnings == ["OK_EVENT_TITLE_SPLIT_RECOVERED:1"]
@@ -340,8 +340,8 @@ def test_normalize_parte1_paragraphs_recovers_title_after_body_join() -> None:
             "AGOSTO:",
             "Texto do evento anterior.",
             "RESSARCIMENTO",
-            "DE APOIO Ã€ NECESSIDADE DE ENSINO ESPECIALIZADO - SolicitaÃ§Ã£o",
-            "- a 28, BAR NÂº 41:",
+            "DE APOIO À NECESSIDADE DE ENSINO ESPECIALIZADO - Solicitação",
+            "- a 28, BAR Nº 41:",
             "Corpo novo",
         ],
         "2",
@@ -350,8 +350,8 @@ def test_normalize_parte1_paragraphs_recovers_title_after_body_join() -> None:
     assert paragraphs == [
         "AGOSTO:",
         "Texto do evento anterior.",
-        "RESSARCIMENTO DE APOIO Ã€ NECESSIDADE DE ENSINO ESPECIALIZADO - SolicitaÃ§Ã£o",
-        "- a 28, BAR NÂº 41:",
+        "RESSARCIMENTO DE APOIO À NECESSIDADE DE ENSINO ESPECIALIZADO - Solicitação",
+        "- a 28, BAR Nº 41:",
         "Corpo novo",
     ]
     assert "OK_EVENT_TITLE_SPLIT_RECOVERED:1" in warnings

@@ -37,6 +37,7 @@ class SicapexProfile:
     qm: str = ""
     identidade: str = ""
     data_praca: date | None = None
+    data_desligamento: date | None = None
     tipo_militar: str = "PRACA"
     comportamento: str = ""
     comportamento_data: str = ""

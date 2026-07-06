@@ -290,7 +290,7 @@ def test_prepare_declaracao_templates_endpoint_generates_managed_copies(
         source_root / "MODELO FACULDADE.odt",
         (
             "DECLARACAO junto ao Centro de Ensino Teste, que o Soldado FULANO DE TAL, "
-            "brasileiro, Identidade Militar n.Âº 111927997-2, CPF n. 088.530.111-06, "
+            "brasileiro, Identidade Militar n.º 111927997-2, CPF n. 088.530.111-06, "
             "servico militar no dia 13 de Maio de 2025. Brasilia-DF, 21 de Maio de 2025"
         ),
     )

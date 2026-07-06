@@ -106,6 +106,8 @@ def _militar_dict(militar: MilitarModel) -> dict[str, Any]:
         "om": militar.om,
         "local_om": militar.local_om,
         "data_praca": _iso(militar.data_praca),
+        "data_licenciamento": _iso(militar.data_licenciamento),
+        "data_desligamento": _iso(militar.data_exclusao_servico_ativo),
         "apresentacao_om": _iso(militar.apresentacao_om),
         "comportamento": militar.comportamento,
         "observacoes_calculo": militar.observacoes_calculo,
