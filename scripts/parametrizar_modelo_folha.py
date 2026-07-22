@@ -36,7 +36,10 @@ from modules.compilador.application.odt_template_policy import (
 PARAGRAPH_PATTERN = re.compile(r"(<text:p\b[^>]*(?<!/)>)(.*?)(</text:p>)", re.S)
 CELL_PATTERN = re.compile(r"(<table:table-cell\b[^>]*(?<!/)>)(.*?)(</table:table-cell>)", re.S)
 
-# Ordem dos flags de valor na 2a Parte APOS a correcao da ordem do Art. 24.
+# Ordem POSICIONAL das celulas de valor neste layout de modelo, apos a
+# correcao da ordem do Art. 24. NAO e TIME_VALUE_FLAGS: modelos de usuario
+# atuais nao tem os subitens c) transito e d) instalacao (a ausencia fica
+# registrada no relatorio; os flags correspondentes sao opcionais).
 VALUE_FLAG_SEQUENCE = [
     "[SISGES_TC]",
     "[SISGES_TC_ARREG]",
@@ -125,6 +128,22 @@ def parametrizar_content(content_xml: str) -> tuple[str, list[str]]:
         return match.group(1) + inner + match.group(3)
 
     content_xml = CELL_PATTERN.sub(visit_cell, content_xml)
+
+    # Guarda contra desalinhamento posicional: ou TODOS os flags foram
+    # consumidos e nenhuma celula de valor sobrou, ou o layout diverge do
+    # esperado e o operador precisa revisar antes de usar o template.
+    flags_nao_consumidos = list(flag_iter)
+    if flags_nao_consumidos:
+        validations.append(
+            "ERR_VALOR_FLAGS_NAO_CONSUMIDOS:" + ",".join(flags_nao_consumidos)
+        )
+    celulas_restantes = sum(
+        1
+        for cell in CELL_PATTERN.finditer(content_xml)
+        if plain(cell.group(2)).strip().endswith("00a00m00d")
+    )
+    if celulas_restantes:
+        validations.append(f"ERR_VALOR_CELULAS_RESTANTES:{celulas_restantes}")
 
     # 3) Assinatura, data/local, 1a parte e comportamento.
     def visit_paragraph(match: re.Match) -> str:

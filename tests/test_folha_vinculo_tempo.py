@@ -336,3 +336,40 @@ def test_datas_soltas_de_documentos_nao_excluem_evento():
     assert len(kept) == 1
     assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
     assert any(item.startswith("WARN_EVENT_DATAS_FORA_DO_PERIODO") for item in validations)
+
+
+def test_data_de_acao_fora_do_periodo_exclui_evento():
+    """RC2: "Apresentou-se em <data fora>" é data de ação e exclui o evento."""
+    events = [
+        EventBlock(
+            mes="JANEIRO",
+            titulo="APRESENTACAO",
+            referencia="- a 2, BI Nº 5 :",
+            corpo="Apresentou-se em 15/01/2024 a militar para o servico.",
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "1", ano=2023)
+
+    assert kept == []
+    assert any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+
+
+def test_data_de_acao_no_periodo_prevalece_sobre_datas_soltas():
+    """RC2: ação dentro do período mantém o evento mesmo com datas antigas soltas."""
+    events = [
+        EventBlock(
+            mes="SETEMBRO",
+            titulo="APRESENTACAO",
+            referencia="- a 12, BI Nº 70 :",
+            corpo=(
+                "Conforme documento registrado em 14/07/2022, "
+                "apresentou-se em 20/09/2025 a militar para o servico."
+            ),
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "2", ano=2025)
+
+    assert len(kept) == 1
+    assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)

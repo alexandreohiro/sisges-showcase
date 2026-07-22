@@ -72,6 +72,36 @@ def test_data_local_configuravel_nas_options():
     assert "2026" in default_values[SISGES_FLAG_DATA_LOCAL]
 
 
+def test_data_local_propaga_para_assinatura_e_corpo():
+    from modules.compilador.application.folha_alteracoes_compiler import (
+        assinatura_xml,
+        build_body_xml,
+    )
+
+    custom = "Quartel-General do Exército - Brasília - DF, 05 de fevereiro de 2026"
+
+    assert custom in assinatura_xml("FULANO - Cel", "Cmt", custom)
+    assert "2026" in assinatura_xml("FULANO - Cel", "Cmt")
+
+    body_custom = build_body_xml(
+        SicapexProfile(nome_completo="MILITAR TESTE"),
+        [],
+        _times(),
+        "2º SEMESTRE DE 2025",
+        CompilerOptions(ano=2025, semestre="2", data_local=custom),
+    )
+    assert custom in body_custom
+
+    body_default = build_body_xml(
+        SicapexProfile(nome_completo="MILITAR TESTE"),
+        [],
+        _times(),
+        "2º SEMESTRE DE 2025",
+        CompilerOptions(ano=2025, semestre="2"),
+    )
+    assert "1° de janeiro de 2026" in body_default
+
+
 def test_injecao_de_header_ignora_paragrafo_autofechado():
     """Regressao: <text:p/> antes do header nao pode engolir o paragrafo seguinte."""
     from modules.compilador.application.odt_template_policy import (

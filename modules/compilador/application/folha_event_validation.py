@@ -73,6 +73,11 @@ DATE_ABBREV_PATTERN = re.compile(
 )
 DATE_NUMERIC_PATTERN = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 
+# Janelas de contexto (em caracteres, antes da data) usadas nas
+# heuristicas de classificacao de datas. Ajustaveis num unico lugar.
+LEGISLATION_CONTEXT_WINDOW = 90
+ACTION_CONTEXT_WINDOW = 40
+
 # Data precedida por citacao de norma ("Portaria ... de 31 AGO 22",
 # "Lei nº 14.133, de 1º de abril de 2021") e data DA LEGISLACAO, nao do
 # evento — nao pode decidir inclusao/exclusao no periodo (RC2).
@@ -87,7 +92,7 @@ def _expand_two_digit_year(year: int) -> int:
 
 
 def _is_legislation_date(text: str, start: int) -> bool:
-    context = text[max(0, start - 90):start]
+    context = text[max(0, start - LEGISLATION_CONTEXT_WINDOW):start]
     return bool(LEGISLATION_CONTEXT_PATTERN.search(context))
 
 
@@ -144,7 +149,7 @@ def extract_action_dates(event: EventBlock) -> list[date]:
         (DATE_NUMERIC_PATTERN, lambda m: date(int(m.group(3)), int(m.group(2)), int(m.group(1)))),
     ):
         for match in pattern.finditer(text):
-            context = text[max(0, match.start() - 40):match.start()]
+            context = text[max(0, match.start() - ACTION_CONTEXT_WINDOW):match.start()]
             if not ACTION_DATE_PATTERN.search(context):
                 continue
             try:
