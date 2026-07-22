@@ -73,16 +73,35 @@ DATE_ABBREV_PATTERN = re.compile(
 )
 DATE_NUMERIC_PATTERN = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 
+# Data precedida por citacao de norma ("Portaria ... de 31 AGO 22",
+# "Lei nº 14.133, de 1º de abril de 2021") e data DA LEGISLACAO, nao do
+# evento — nao pode decidir inclusao/exclusao no periodo (RC2).
+LEGISLATION_CONTEXT_PATTERN = re.compile(
+    r"(PORTARIA|LEI|DECRETO(-LEI)?|DIRETRIZ|NORMA|INSTRUCAO|BOLETIM|MANUAL|"
+    r"REGULAMENTO|EB\d{2}|IG\s*\d|DIEX|OFICIO)[^.;]{0,80}\bDE\s*$"
+)
+
 
 def _expand_two_digit_year(year: int) -> int:
     return year + 2000 if year < 100 else year
 
 
+def _is_legislation_date(text: str, start: int) -> bool:
+    context = text[max(0, start - 90):start]
+    return bool(LEGISLATION_CONTEXT_PATTERN.search(context))
+
+
 def extract_event_dates(event: EventBlock) -> list[date]:
-    """Datas citadas no titulo, na referencia e no corpo do evento."""
+    """Datas citadas no titulo, na referencia e no corpo do evento.
+
+    Datas de legislacao citada sao ignoradas: um evento que so referencia
+    a data de uma portaria antiga continua pertencendo ao periodo da folha.
+    """
     text = strip_accents(f"{event.titulo}\n{event.referencia}\n{event.corpo}").upper()
     found: list[date] = []
     for match in DATE_ABBREV_PATTERN.finditer(text):
+        if _is_legislation_date(text, match.start()):
+            continue
         day, month_name, year = match.groups()
         try:
             found.append(
@@ -91,6 +110,8 @@ def extract_event_dates(event: EventBlock) -> list[date]:
         except ValueError:
             continue
     for match in DATE_NUMERIC_PATTERN.finditer(text):
+        if _is_legislation_date(text, match.start()):
+            continue
         day, month, year = match.groups()
         try:
             found.append(date(int(year), int(month), int(day)))
@@ -99,13 +120,52 @@ def extract_event_dates(event: EventBlock) -> list[date]:
     return found
 
 
+ACTION_DATE_PATTERN = re.compile(
+    r"(APRESENTOU-SE(\s+PRONTO)?(\s+EM)?|A\s+CONTAR\s+DE|DESLIGAD[OA]\s+EM|"
+    r"INCORPORAD[OA]\s+EM|EXCLUID[OA]\s+EM|LICENCIAD[OA]\s+EM)\s*[:,]?\s*$"
+)
+
+
+def extract_action_dates(event: EventBlock) -> list[date]:
+    """Datas de ACAO do evento (apresentou-se em, a contar de, ...).
+
+    Sao as unicas datas fortes o bastante para EXCLUIR um evento do
+    periodo; datas soltas no corpo (documentos, terceiros, legislacao)
+    nao decidem exclusao.
+    """
+    text = strip_accents(f"{event.titulo}\n{event.referencia}\n{event.corpo}").upper()
+    found: list[date] = []
+    for pattern, builder in (
+        (DATE_ABBREV_PATTERN, lambda m: date(
+            _expand_two_digit_year(int(m.group(3))),
+            MONTH_ABBREVIATIONS[m.group(2).upper()],
+            int(m.group(1)),
+        )),
+        (DATE_NUMERIC_PATTERN, lambda m: date(int(m.group(3)), int(m.group(2)), int(m.group(1)))),
+    ):
+        for match in pattern.finditer(text):
+            context = text[max(0, match.start() - 40):match.start()]
+            if not ACTION_DATE_PATTERN.search(context):
+                continue
+            try:
+                found.append(builder(match))
+            except ValueError:
+                continue
+    return found
+
+
 def filter_events_in_period(
     events: list[EventBlock], start: date, end: date
 ) -> tuple[list[EventBlock], list[str]]:
     """Mantem eventos com alguma data dentro de [start, end].
 
-    Evento sem data extraivel e mantido com WARN_EVENT_SEM_DATA; evento cujas
-    datas estao TODAS fora do periodo e excluido com ERR_EVENT_FORA_DO_PERIODO.
+    - sem data extraivel -> mantem com WARN_EVENT_SEM_DATA;
+    - alguma data no periodo -> mantem;
+    - TODAS as datas fora E alguma data de ACAO (apresentou-se em,
+      a contar de...) fora -> exclui com ERR_EVENT_FORA_DO_PERIODO;
+    - todas fora mas sem data de acao -> mantem com
+      WARN_EVENT_DATAS_FORA_DO_PERIODO (datas soltas de documentos ou
+      terceiros nao bastam para excluir uma alteracao do semestre).
     Nada e descartado silenciosamente.
     """
     kept: list[EventBlock] = []
@@ -119,9 +179,16 @@ def filter_events_in_period(
         if any(start <= item <= end for item in dates):
             kept.append(event)
             continue
+        action_dates = extract_action_dates(event)
+        listed = ",".join(item.isoformat() for item in dates)
+        if action_dates and not any(start <= item <= end for item in action_dates):
+            validations.append(
+                f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
+            )
+            continue
+        kept.append(event)
         validations.append(
-            f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:"
-            + ",".join(item.isoformat() for item in dates)
+            f"WARN_EVENT_DATAS_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
         )
     return kept, validations
 
@@ -204,9 +271,31 @@ def _parse_single_date(fragment: str) -> date | None:
     return None
 
 
+def recover_titles_from_previous_event(events: list[EventBlock]) -> list[str]:
+    """Titulo orfao na cauda do corpo do evento anterior (quebra de pagina).
+
+    Em PDFs de folhas, o titulo do proximo evento costuma ser a ultima
+    linha antes da referencia; quando a extracao fatiou errado, ele fica
+    no fim do corpo do evento anterior. Move de volta para o dono.
+    """
+    validations: list[str] = []
+    for previous, current in zip(events, events[1:]):
+        if current.titulo.strip() or not previous.corpo:
+            continue
+        lines = split_paragraphs(previous.corpo)
+        if not lines:
+            continue
+        candidate = lines[-1]
+        if is_recoverable_event_title(candidate):
+            current.titulo = candidate
+            previous.corpo = "\n".join(lines[:-1]).strip()
+            validations.append("OK_EVENT_TITLE_RECOVERED_FROM_PREVIOUS")
+    return list(dict.fromkeys(validations))
+
+
 def normalize_event_blocks(events: list[EventBlock]) -> tuple[list[EventBlock], list[str]]:
     normalized: list[EventBlock] = []
-    validations: list[str] = []
+    validations: list[str] = recover_titles_from_previous_event(events)
     for event in events:
         pieces, split_recovered = split_embedded_events(event)
         if split_recovered:

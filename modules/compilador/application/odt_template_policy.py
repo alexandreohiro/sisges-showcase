@@ -33,6 +33,33 @@ SISGES_FLAG_DATA_LOCAL = "[SISGES_DATA_LOCAL]"
 SISGES_FLAG_ASSINATURA_NOME = "[SISGES_ASSINATURA_NOME]"
 SISGES_FLAG_ASSINATURA_FUNCAO = "[SISGES_ASSINATURA_FUNCAO]"
 
+# Flags OPCIONAIS de valores da 2ª Parte (Art. 24). Templates com a tabela
+# de tempos própria usam estes tokens nas células de valor; templates sem
+# eles seguem válidos (não entram em REQUIRED_SISGES_FLAGS).
+SISGES_FLAG_TC = "[SISGES_TC]"
+SISGES_FLAG_TC_ARREG = "[SISGES_TC_ARREG]"
+SISGES_FLAG_TC_NAO_ARREG = "[SISGES_TC_NAO_ARREG]"
+SISGES_FLAG_TC_TRANSITO = "[SISGES_TC_TRANSITO]"
+SISGES_FLAG_TC_INSTALACAO = "[SISGES_TC_INSTALACAO]"
+SISGES_FLAG_TNC = "[SISGES_TNC]"
+SISGES_FLAG_TSSD = "[SISGES_TSSD]"
+SISGES_FLAG_TSCMM = "[SISGES_TSCMM]"
+SISGES_FLAG_TSNR = "[SISGES_TSNR]"
+SISGES_FLAG_TTES = "[SISGES_TTES]"
+
+TIME_VALUE_FLAGS = (
+    SISGES_FLAG_TC,
+    SISGES_FLAG_TC_ARREG,
+    SISGES_FLAG_TC_NAO_ARREG,
+    SISGES_FLAG_TC_TRANSITO,
+    SISGES_FLAG_TC_INSTALACAO,
+    SISGES_FLAG_TNC,
+    SISGES_FLAG_TSSD,
+    SISGES_FLAG_TSCMM,
+    SISGES_FLAG_TSNR,
+    SISGES_FLAG_TTES,
+)
+
 REQUIRED_SISGES_MARKERS = (
     SISGES_HEADER_MARKER,
     SISGES_PRIMEIRA_PARTE_MARKER,
@@ -180,7 +207,9 @@ def odt_has_sisges_marker_in_styles(styles_xml: str) -> bool:
 # ---------------------------------------------------------------------------
 
 MASTER_STYLES_PATTERN = re.compile(r"<office:master-styles>.*?</office:master-styles>", re.S)
-HEADER_TEXT_P_PATTERN = re.compile(r"(<text:p\b[^>]*>)(.*?)(</text:p>)", re.S)
+# (?<!/) exclui <text:p/> auto-fechado: sem isso o paragrafo vazio "engole"
+# o paragrafo seguinte na substituicao e corrompe o XML.
+HEADER_TEXT_P_PATTERN = re.compile(r"(<text:p\b[^>]*(?<!/)>)(.*?)(</text:p>)", re.S)
 SEMESTER_HEADER_PATTERN = re.compile(r"[12]\s*[ºo°]?\s*SEMESTRE\s+DE\s+\d{4}", re.I)
 PERIODO_HEADER_PATTERN = re.compile(
     r"PER[IÍ]ODO:\s*1\s*[ºo°]?\s*(?:JAN\w*\.?|JUL\w*\.?)\s*A\s*3[01]\s*(?:JUN\w*\.?|DEZ\w*\.?)",

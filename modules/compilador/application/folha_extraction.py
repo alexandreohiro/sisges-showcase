@@ -216,7 +216,7 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
     def flush_event() -> None:
         nonlocal current_event
         if current_event:
-            current_event.corpo = normalize_space(current_event.corpo)
+            current_event.corpo = current_event.corpo.strip()
             events.append(current_event)
             current_event = None
 
@@ -241,7 +241,10 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
             pending_title = ""
             continue
         if current_event:
-            current_event.corpo = f"{current_event.corpo} {line}".strip()
+            # Preserva a estrutura de linhas: e o que permite ao
+            # normalize_event_blocks recuperar titulos que cairam no corpo
+            # do evento anterior (quebras de pagina do PDF).
+            current_event.corpo = f"{current_event.corpo}\n{line}".strip()
         elif current_month:
             pending_title = line
     flush_event()
