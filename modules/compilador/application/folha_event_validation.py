@@ -160,7 +160,7 @@ def extract_action_dates(event: EventBlock) -> list[date]:
 
 
 def filter_events_in_period(
-    events: list[EventBlock], start: date, end: date
+    events: list[EventBlock], start: date, end: date, *, strict: bool = True
 ) -> tuple[list[EventBlock], list[str]]:
     """Mantem eventos com alguma data dentro de [start, end].
 
@@ -172,6 +172,12 @@ def filter_events_in_period(
       WARN_EVENT_DATAS_FORA_DO_PERIODO (datas soltas de documentos ou
       terceiros nao bastam para excluir uma alteracao do semestre).
     Nada e descartado silenciosamente.
+
+    `strict=False` (transcricao de folha ja curada pela secretaria): o mes
+    de PUBLICACAO governa (Anexo B) e nada e excluido — datas de acao fora
+    do periodo geram WARN_EVENT_ACAO_FORA_DO_PERIODO para revisao (fatos
+    de dezembro publicados em janeiro sao normais; ano trocado aparece no
+    aviso em vez de sumir da folha).
     """
     kept: list[EventBlock] = []
     validations: list[str] = []
@@ -187,8 +193,14 @@ def filter_events_in_period(
         action_dates = extract_action_dates(event)
         listed = ",".join(item.isoformat() for item in dates)
         if action_dates and not any(start <= item <= end for item in action_dates):
+            if strict:
+                validations.append(
+                    f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
+                )
+                continue
+            kept.append(event)
             validations.append(
-                f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
+                f"WARN_EVENT_ACAO_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
             )
             continue
         kept.append(event)
@@ -199,7 +211,11 @@ def filter_events_in_period(
 
 
 def normalize_semester_events(
-    events: list[EventBlock], semestre: str, ano: int | None = None
+    events: list[EventBlock],
+    semestre: str,
+    ano: int | None = None,
+    *,
+    strict: bool = True,
 ) -> list[EventBlock] | tuple[list[EventBlock], list[str]]:
     """Filtra eventos pelo periodo da folha.
 
@@ -219,7 +235,7 @@ def normalize_semester_events(
     if ano is None:
         return in_semester
     start, end, _label = period_bounds(ano, semestre)
-    kept, date_validations = filter_events_in_period(in_semester, start, end)
+    kept, date_validations = filter_events_in_period(in_semester, start, end, strict=strict)
     validations.extend(date_validations)
     return kept, list(dict.fromkeys(validations))
 

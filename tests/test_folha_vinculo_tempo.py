@@ -373,3 +373,21 @@ def test_data_de_acao_no_periodo_prevalece_sobre_datas_soltas():
 
     assert len(kept) == 1
     assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+
+
+def test_modo_transcricao_mantem_publicacao_atrasada_com_warn():
+    """strict=False (folha curada): fato de dezembro publicado em janeiro fica, com WARN."""
+    events = [
+        EventBlock(
+            mes="JANEIRO",
+            titulo="APRESENTACAO - POR TERMINO DE FERIAS",
+            referencia="- a 3, BI Nº 2 :",
+            corpo="Apresentou-se em 26/12/2025 por termino de ferias.",
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "1", ano=2026, strict=False)
+
+    assert len(kept) == 1
+    assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+    assert any(item.startswith("WARN_EVENT_ACAO_FORA_DO_PERIODO") for item in validations)

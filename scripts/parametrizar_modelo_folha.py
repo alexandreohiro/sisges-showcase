@@ -153,10 +153,10 @@ def parametrizar_content(content_xml: str) -> tuple[str, list[str]]:
         if text.startswith("Quartel-General do Exército"):
             validations.append("OK_FLAG:[SISGES_DATA_LOCAL]")
             return rewrite_paragraph(match, "[SISGES_DATA_LOCAL]")
-        if re.match(r"^S Cmt B Adm QGEx$|^Cmt B Adm QGEx$", text):
+        if re.match(r"^(S\s+)?Cmt\s+B\s+Adm\s+QGEx$", text, re.I):
             validations.append("OK_FLAG:[SISGES_ASSINATURA_FUNCAO]")
             return rewrite_paragraph(match, "[SISGES_ASSINATURA_FUNCAO]")
-        if re.match(r"^[A-ZÀ-Ü][A-ZÀ-Ü ]+ – Cel$", text):
+        if re.match(r"^[A-ZÀ-Ü][A-ZÀ-Ü ]+\s[–-]\s?Cel$", text):
             validations.append("OK_FLAG:[SISGES_ASSINATURA_NOME]")
             return rewrite_paragraph(match, "[SISGES_ASSINATURA_NOME]")
         return match.group(0)
