@@ -224,6 +224,14 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
         line = clean_noise(normalize_space(raw_line))
         if not line:
             continue
+        # Fim da 1a Parte: a 2a Parte (tempos) e a assinatura NAO sao
+        # eventos — sem este corte elas viram corpo do ultimo evento.
+        if re.match(r"^2\s*ª?\s*PARTE\b", line, re.I):
+            flush_event()
+            break
+        if re.match(r"^Comportamento:\s*\S+$", line, re.I):
+            # Metadado do perfil (vem imediatamente antes da 2a Parte).
+            continue
         month = normalize_month(line.rstrip(":"))
         if month in semester_months(options.semestre):
             flush_event()
@@ -246,7 +254,9 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
             # do evento anterior (quebras de pagina do PDF).
             current_event.corpo = f"{current_event.corpo}\n{line}".strip()
         elif current_month:
-            pending_title = line
+            # Titulos longos quebram em varias linhas no PDF; acumula ate
+            # aparecer a referencia (mesma regra do extrator de ODT).
+            pending_title = line if not pending_title else f"{pending_title} {line}"
     flush_event()
     return events
 

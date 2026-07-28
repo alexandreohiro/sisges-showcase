@@ -391,3 +391,44 @@ def test_modo_transcricao_mantem_publicacao_atrasada_com_warn():
     assert len(kept) == 1
     assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
     assert any(item.startswith("WARN_EVENT_ACAO_FORA_DO_PERIODO") for item in validations)
+
+
+def test_extracao_pdf_para_na_segunda_parte(tmp_path):
+    """A 2ª Parte e a assinatura do PDF não podem virar corpo de evento."""
+    from modules.compilador.application.folha_extraction import extract_events_from_bi_pdf
+
+    class _FakePdfPage:
+        def __init__(self, text):
+            self._text = text
+
+        def extract_text(self):
+            return self._text
+
+    texto = "\n".join(
+        [
+            "JUNHO:",
+            "FOLHAS DE ALTERACOES - Entrega",
+            "- a 30, BI Nº 47 :",
+            "Foi entregue no mes de JUNHO 26 as Folhas de Alteracoes.",
+            "Comportamento: EXCEPCIONAL",
+            "2ª PARTE",
+            "1. TEMPO COMPUTADO DE EFETIVO SERVIÇO (TC) .... 00 a 06 m 00 d",
+            "FULANO DE TAL - Cel",
+            "S Cmt B Adm QGEx",
+        ]
+    )
+
+    import modules.compilador.application.folha_extraction as fx
+
+    original = fx.extract_pdf_text
+    fx.extract_pdf_text = lambda _path: texto
+    try:
+        events = extract_events_from_bi_pdf(Path("/nao/existe.pdf"), CompilerOptions(ano=2026, semestre="1"))
+    finally:
+        fx.extract_pdf_text = original
+
+    assert len(events) == 1
+    assert "2ª PARTE" not in events[0].corpo
+    assert "TEMPO COMPUTADO" not in events[0].corpo
+    assert "Comportamento" not in events[0].corpo
+    assert "Cel" not in events[0].corpo

@@ -306,10 +306,14 @@ def recover_titles_from_previous_event(events: list[EventBlock]) -> list[str]:
         lines = split_paragraphs(previous.corpo)
         if not lines:
             continue
-        candidate = lines[-1]
-        if is_recoverable_event_title(candidate):
-            current.titulo = candidate
-            previous.corpo = "\n".join(lines[:-1]).strip()
+        # Titulos longos quebram em mais de uma linha: recolhe do fim as
+        # linhas contiguas com cara de titulo (max 3) e junta na ordem.
+        collected: list[str] = []
+        while lines and len(collected) < 3 and is_recoverable_event_title(lines[-1]):
+            collected.insert(0, lines.pop())
+        if collected:
+            current.titulo = " ".join(collected)
+            previous.corpo = "\n".join(lines).strip()
             validations.append("OK_EVENT_TITLE_RECOVERED_FROM_PREVIOUS")
     return list(dict.fromkeys(validations))
 
