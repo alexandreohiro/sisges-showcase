@@ -128,3 +128,57 @@ def test_injecao_de_header_ignora_paragrafo_autofechado():
     assert "[SISGES_SEMESTRE_TEXTO]" in rewritten
     assert "2023" not in rewritten
     ET.fromstring(rewritten.encode("utf-8"))  # XML permanece valido
+
+
+def test_flag_de_continuacao_carrega_posto_e_nome():
+    """Anexo B: "Continuação ... do (P/G nome do militar)"."""
+    from modules.compilador.application.odt_template_policy import (
+        SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO,
+    )
+
+    values = sisges_flag_values(
+        SicapexProfile(
+            nome_completo="MILITAR SINTETICA DE TESTE",
+            graduacao_abrev="Cap",
+            graduacao_extenso="Capitão",
+        ),
+        [],
+        _times(),
+        "1º SEMESTRE DE 2026",
+        CompilerOptions(ano=2026, semestre="1"),
+    )
+
+    assert values[SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO] == "CAPITÃO MILITAR SINTETICA DE TESTE"
+
+
+def test_injecao_reconhece_placeholder_e_nome_estatico_na_continuacao():
+    from modules.compilador.application.odt_template_policy import (
+        SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO,
+        inject_continuation_header_flags,
+    )
+
+    styles = (
+        '<office:document-styles'
+        ' xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"'
+        ' xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"'
+        ' xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">'
+        "<office:master-styles>"
+        '<style:master-page style:name="A"><style:header>'
+        "<text:p>Continuação das Folhas de Alterações do</text:p>"
+        "<text:p>Graduação Nome completo</text:p>"
+        "</style:header></style:master-page>"
+        '<style:master-page style:name="B"><style:header>'
+        "<text:p>Continuação das Folhas de Alterações</text:p>"
+        "<text:p>do CAPITÃO FULANO EXEMPLO DA SILVA</text:p>"
+        "</style:header></style:master-page>"
+        "</office:master-styles>"
+        "</office:document-styles>"
+    )
+
+    rewritten, validations = inject_continuation_header_flags(styles)
+
+    assert "OK_HEADER_CONTINUACAO_FLAGS_INJETADOS" in validations
+    assert rewritten.count(SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO) == 2
+    assert "Graduação Nome completo" not in rewritten
+    assert "FULANO EXEMPLO DA SILVA" not in rewritten
+    ET.fromstring(rewritten.encode("utf-8"))

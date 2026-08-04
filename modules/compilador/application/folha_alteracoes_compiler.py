@@ -539,7 +539,11 @@ def sisges_flag_values(
         SISGES_FLAG_IDENTIDADE: escape(profile.identidade),
         SISGES_FLAG_SEMESTRE_TEXTO: escape(period_label),
         SISGES_FLAG_PERIODO: escape(periodo_curto(options)),
-        SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO: escape(graduacao.upper() if graduacao else ""),
+        # Anexo B da Port. 063-DGP/2020: "Continuação das Folhas de
+        # Alterações do...(P/G nome do militar)".
+        SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO: escape(
+            f"{graduacao} {profile.nome_completo}".upper().strip()
+        ),
         SISGES_FLAG_COMPORTAMENTO: comportamento_text(profile),
         SISGES_FLAG_DATA_LOCAL: escape(data_local_text(options)),
         SISGES_FLAG_ASSINATURA_NOME: escape(assinatura_nome),
