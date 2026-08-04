@@ -533,7 +533,9 @@ def sisges_flag_values(
     assinatura_nome, assinatura_funcao = select_assinatura_for_options(profile, options)
     graduacao = profile.graduacao_extenso or profile.graduacao_abrev
     return {
-        SISGES_FLAG_NOME: escape(profile.nome_completo),
+        # Nome de guerra em negrito (regra da folha); exige o estilo de
+        # texto "Bold" no template — o parametrizador o garante.
+        SISGES_FLAG_NOME: nome_completo_xml(profile.nome_completo, profile.nome_guerra),
         SISGES_FLAG_GRADUACAO: escape(graduacao),
         SISGES_FLAG_QMS: escape(profile.qm),
         SISGES_FLAG_IDENTIDADE: escape(profile.identidade),

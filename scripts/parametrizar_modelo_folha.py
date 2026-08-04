@@ -192,6 +192,29 @@ def parametrizar_content(content_xml: str) -> tuple[str, list[str]]:
     return content_xml, validations
 
 
+BOLD_TEXT_STYLE = (
+    '<style:style style:name="Bold" style:family="text">'
+    '<style:text-properties fo:font-weight="bold"/></style:style>'
+)
+
+
+def garantir_estilo_bold(xml: str, container: str) -> tuple[str, bool]:
+    """Garante o estilo de texto "Bold" (usado no nome de guerra).
+
+    `container` e a tag onde inserir ("office:automatic-styles" no
+    content.xml, "office:styles" no styles.xml).
+    """
+    if 'style:name="Bold"' in xml:
+        return xml, False
+    open_tag = f"<{container}>"
+    if open_tag in xml:
+        return xml.replace(open_tag, open_tag + BOLD_TEXT_STYLE, 1), True
+    empty_tag = f"<{container}/>"
+    if empty_tag in xml:
+        return xml.replace(empty_tag, f"<{container}>{BOLD_TEXT_STYLE}</{container}>", 1), True
+    return xml, False
+
+
 def parametrizar_modelo(source: Path, output: Path) -> list[str]:
     with zipfile.ZipFile(source, "r") as zin:
         entries = {info.filename: zin.read(info.filename) for info in zin.infolist() if not info.is_dir()}
@@ -201,6 +224,11 @@ def parametrizar_modelo(source: Path, output: Path) -> list[str]:
 
     styles_xml, style_validations = parametrizar_styles(styles_xml)
     content_xml, content_validations = parametrizar_content(content_xml)
+
+    content_xml, bold_content = garantir_estilo_bold(content_xml, "office:automatic-styles")
+    styles_xml, bold_styles = garantir_estilo_bold(styles_xml, "office:styles")
+    if bold_content or bold_styles:
+        content_validations.append("OK_ESTILO_BOLD_GARANTIDO")
 
     entries["content.xml"] = content_xml.encode("utf-8")
     if "styles.xml" in entries:
