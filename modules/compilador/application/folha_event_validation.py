@@ -318,6 +318,44 @@ def recover_titles_from_previous_event(events: list[EventBlock]) -> list[str]:
     return list(dict.fromkeys(validations))
 
 
+TITLE_DASH_PATTERN = re.compile(r"\s+-\s+")
+REFERENCE_NUMBER_PATTERN = re.compile(r"^[-–]\s*a\s+(\d{1,3})\b")
+
+
+def normalize_titulo(titulo: str) -> str:
+    """Normaliza a tipografia do titulo da 1a Parte.
+
+    Folhas curadas usam travessao ("FÉRIAS – Alteração"); o texto extraido
+    de PDF chega com hifen. Unifica separador e espacos, sem mexer em
+    hifens internos de palavras (ex.: "PRÉ-TAF").
+    """
+    return TITLE_DASH_PATTERN.sub(" – ", normalize_space(titulo))
+
+
+def validate_ordem_referencias(events: list[EventBlock]) -> list[str]:
+    """Gate da 1a Parte: dentro de cada mes, os numeros de alteracao
+    ("- a N, ...") devem ser nao-decrescentes na ordem de publicacao.
+
+    Quebra de monotonicidade e sintoma de evento fatiado/fora de lugar na
+    extracao — vira WARN para revisao, nunca reordenacao automatica (a
+    ordem de publicacao do boletim e a autoridade).
+    """
+    validations: list[str] = []
+    ultimo_por_mes: dict[str, int] = {}
+    for event in events:
+        match = REFERENCE_NUMBER_PATTERN.match(event.referencia or "")
+        if not match:
+            continue
+        numero = int(match.group(1))
+        anterior = ultimo_por_mes.get(event.mes)
+        if anterior is not None and numero < anterior:
+            validations.append(
+                f"WARN_ORDEM_EVENTOS_NAO_MONOTONICA:{event.mes}:a{numero}<a{anterior}"
+            )
+        ultimo_por_mes[event.mes] = max(numero, anterior or 0)
+    return validations
+
+
 def normalize_event_blocks(events: list[EventBlock]) -> tuple[list[EventBlock], list[str]]:
     normalized: list[EventBlock] = []
     validations: list[str] = recover_titles_from_previous_event(events)
@@ -329,9 +367,11 @@ def normalize_event_blocks(events: list[EventBlock]) -> tuple[list[EventBlock], 
             recovered = recover_missing_event_title(piece)
             if recovered:
                 validations.append("OK_EVENT_TITLE_RECOVERED")
+            piece.titulo = normalize_titulo(piece.titulo)
             if not piece.titulo.strip():
                 validations.append("WARN_EVENT_TITLE_MISSING")
             normalized.append(piece)
+    validations.extend(validate_ordem_referencias(normalized))
     return normalized, list(dict.fromkeys(validations))
 
 
