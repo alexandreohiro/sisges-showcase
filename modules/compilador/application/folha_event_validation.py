@@ -73,16 +73,40 @@ DATE_ABBREV_PATTERN = re.compile(
 )
 DATE_NUMERIC_PATTERN = re.compile(r"\b(\d{1,2})/(\d{1,2})/(\d{4})\b")
 
+# Janelas de contexto (em caracteres, antes da data) usadas nas
+# heuristicas de classificacao de datas. Ajustaveis num unico lugar.
+LEGISLATION_CONTEXT_WINDOW = 90
+ACTION_CONTEXT_WINDOW = 40
+
+# Data precedida por citacao de norma ("Portaria ... de 31 AGO 22",
+# "Lei nº 14.133, de 1º de abril de 2021") e data DA LEGISLACAO, nao do
+# evento — nao pode decidir inclusao/exclusao no periodo (RC2).
+LEGISLATION_CONTEXT_PATTERN = re.compile(
+    r"(PORTARIA|LEI|DECRETO(-LEI)?|DIRETRIZ|NORMA|INSTRUCAO|BOLETIM|MANUAL|"
+    r"REGULAMENTO|EB\d{2}|IG\s*\d|DIEX|OFICIO)[^.;]{0,80}\bDE\s*$"
+)
+
 
 def _expand_two_digit_year(year: int) -> int:
     return year + 2000 if year < 100 else year
 
 
+def _is_legislation_date(text: str, start: int) -> bool:
+    context = text[max(0, start - LEGISLATION_CONTEXT_WINDOW):start]
+    return bool(LEGISLATION_CONTEXT_PATTERN.search(context))
+
+
 def extract_event_dates(event: EventBlock) -> list[date]:
-    """Datas citadas no titulo, na referencia e no corpo do evento."""
+    """Datas citadas no titulo, na referencia e no corpo do evento.
+
+    Datas de legislacao citada sao ignoradas: um evento que so referencia
+    a data de uma portaria antiga continua pertencendo ao periodo da folha.
+    """
     text = strip_accents(f"{event.titulo}\n{event.referencia}\n{event.corpo}").upper()
     found: list[date] = []
     for match in DATE_ABBREV_PATTERN.finditer(text):
+        if _is_legislation_date(text, match.start()):
+            continue
         day, month_name, year = match.groups()
         try:
             found.append(
@@ -91,6 +115,8 @@ def extract_event_dates(event: EventBlock) -> list[date]:
         except ValueError:
             continue
     for match in DATE_NUMERIC_PATTERN.finditer(text):
+        if _is_legislation_date(text, match.start()):
+            continue
         day, month, year = match.groups()
         try:
             found.append(date(int(year), int(month), int(day)))
@@ -99,14 +125,59 @@ def extract_event_dates(event: EventBlock) -> list[date]:
     return found
 
 
+ACTION_DATE_PATTERN = re.compile(
+    r"(APRESENTOU-SE(\s+PRONTO)?(\s+EM)?|A\s+CONTAR\s+DE|DESLIGAD[OA]\s+EM|"
+    r"INCORPORAD[OA]\s+EM|EXCLUID[OA]\s+EM|LICENCIAD[OA]\s+EM)\s*[:,]?\s*$"
+)
+
+
+def extract_action_dates(event: EventBlock) -> list[date]:
+    """Datas de ACAO do evento (apresentou-se em, a contar de, ...).
+
+    Sao as unicas datas fortes o bastante para EXCLUIR um evento do
+    periodo; datas soltas no corpo (documentos, terceiros, legislacao)
+    nao decidem exclusao.
+    """
+    text = strip_accents(f"{event.titulo}\n{event.referencia}\n{event.corpo}").upper()
+    found: list[date] = []
+    for pattern, builder in (
+        (DATE_ABBREV_PATTERN, lambda m: date(
+            _expand_two_digit_year(int(m.group(3))),
+            MONTH_ABBREVIATIONS[m.group(2).upper()],
+            int(m.group(1)),
+        )),
+        (DATE_NUMERIC_PATTERN, lambda m: date(int(m.group(3)), int(m.group(2)), int(m.group(1)))),
+    ):
+        for match in pattern.finditer(text):
+            context = text[max(0, match.start() - ACTION_CONTEXT_WINDOW):match.start()]
+            if not ACTION_DATE_PATTERN.search(context):
+                continue
+            try:
+                found.append(builder(match))
+            except ValueError:
+                continue
+    return found
+
+
 def filter_events_in_period(
-    events: list[EventBlock], start: date, end: date
+    events: list[EventBlock], start: date, end: date, *, strict: bool = True
 ) -> tuple[list[EventBlock], list[str]]:
     """Mantem eventos com alguma data dentro de [start, end].
 
-    Evento sem data extraivel e mantido com WARN_EVENT_SEM_DATA; evento cujas
-    datas estao TODAS fora do periodo e excluido com ERR_EVENT_FORA_DO_PERIODO.
+    - sem data extraivel -> mantem com WARN_EVENT_SEM_DATA;
+    - alguma data no periodo -> mantem;
+    - TODAS as datas fora E alguma data de ACAO (apresentou-se em,
+      a contar de...) fora -> exclui com ERR_EVENT_FORA_DO_PERIODO;
+    - todas fora mas sem data de acao -> mantem com
+      WARN_EVENT_DATAS_FORA_DO_PERIODO (datas soltas de documentos ou
+      terceiros nao bastam para excluir uma alteracao do semestre).
     Nada e descartado silenciosamente.
+
+    `strict=False` (transcricao de folha ja curada pela secretaria): o mes
+    de PUBLICACAO governa (Anexo B) e nada e excluido — datas de acao fora
+    do periodo geram WARN_EVENT_ACAO_FORA_DO_PERIODO para revisao (fatos
+    de dezembro publicados em janeiro sao normais; ano trocado aparece no
+    aviso em vez de sumir da folha).
     """
     kept: list[EventBlock] = []
     validations: list[str] = []
@@ -119,15 +190,32 @@ def filter_events_in_period(
         if any(start <= item <= end for item in dates):
             kept.append(event)
             continue
+        action_dates = extract_action_dates(event)
+        listed = ",".join(item.isoformat() for item in dates)
+        if action_dates and not any(start <= item <= end for item in action_dates):
+            if strict:
+                validations.append(
+                    f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
+                )
+                continue
+            kept.append(event)
+            validations.append(
+                f"WARN_EVENT_ACAO_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
+            )
+            continue
+        kept.append(event)
         validations.append(
-            f"ERR_EVENT_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:"
-            + ",".join(item.isoformat() for item in dates)
+            f"WARN_EVENT_DATAS_FORA_DO_PERIODO:{event.mes}:{event.titulo[:60]}:{listed}"
         )
     return kept, validations
 
 
 def normalize_semester_events(
-    events: list[EventBlock], semestre: str, ano: int | None = None
+    events: list[EventBlock],
+    semestre: str,
+    ano: int | None = None,
+    *,
+    strict: bool = True,
 ) -> list[EventBlock] | tuple[list[EventBlock], list[str]]:
     """Filtra eventos pelo periodo da folha.
 
@@ -147,7 +235,7 @@ def normalize_semester_events(
     if ano is None:
         return in_semester
     start, end, _label = period_bounds(ano, semestre)
-    kept, date_validations = filter_events_in_period(in_semester, start, end)
+    kept, date_validations = filter_events_in_period(in_semester, start, end, strict=strict)
     validations.extend(date_validations)
     return kept, list(dict.fromkeys(validations))
 
@@ -204,9 +292,73 @@ def _parse_single_date(fragment: str) -> date | None:
     return None
 
 
+def recover_titles_from_previous_event(events: list[EventBlock]) -> list[str]:
+    """Titulo orfao na cauda do corpo do evento anterior (quebra de pagina).
+
+    Em PDFs de folhas, o titulo do proximo evento costuma ser a ultima
+    linha antes da referencia; quando a extracao fatiou errado, ele fica
+    no fim do corpo do evento anterior. Move de volta para o dono.
+    """
+    validations: list[str] = []
+    for previous, current in zip(events, events[1:]):
+        if current.titulo.strip() or not previous.corpo:
+            continue
+        lines = split_paragraphs(previous.corpo)
+        if not lines:
+            continue
+        # Titulos longos quebram em mais de uma linha: recolhe do fim as
+        # linhas contiguas com cara de titulo (max 3) e junta na ordem.
+        collected: list[str] = []
+        while lines and len(collected) < 3 and is_recoverable_event_title(lines[-1]):
+            collected.insert(0, lines.pop())
+        if collected:
+            current.titulo = " ".join(collected)
+            previous.corpo = "\n".join(lines).strip()
+            validations.append("OK_EVENT_TITLE_RECOVERED_FROM_PREVIOUS")
+    return list(dict.fromkeys(validations))
+
+
+TITLE_DASH_PATTERN = re.compile(r"\s+-\s+")
+REFERENCE_NUMBER_PATTERN = re.compile(r"^[-–]\s*a\s+(\d{1,3})\b")
+
+
+def normalize_titulo(titulo: str) -> str:
+    """Normaliza a tipografia do titulo da 1a Parte.
+
+    Folhas curadas usam travessao ("FÉRIAS – Alteração"); o texto extraido
+    de PDF chega com hifen. Unifica separador e espacos, sem mexer em
+    hifens internos de palavras (ex.: "PRÉ-TAF").
+    """
+    return TITLE_DASH_PATTERN.sub(" – ", normalize_space(titulo))
+
+
+def validate_ordem_referencias(events: list[EventBlock]) -> list[str]:
+    """Gate da 1a Parte: dentro de cada mes, os numeros de alteracao
+    ("- a N, ...") devem ser nao-decrescentes na ordem de publicacao.
+
+    Quebra de monotonicidade e sintoma de evento fatiado/fora de lugar na
+    extracao — vira WARN para revisao, nunca reordenacao automatica (a
+    ordem de publicacao do boletim e a autoridade).
+    """
+    validations: list[str] = []
+    ultimo_por_mes: dict[str, int] = {}
+    for event in events:
+        match = REFERENCE_NUMBER_PATTERN.match(event.referencia or "")
+        if not match:
+            continue
+        numero = int(match.group(1))
+        anterior = ultimo_por_mes.get(event.mes)
+        if anterior is not None and numero < anterior:
+            validations.append(
+                f"WARN_ORDEM_EVENTOS_NAO_MONOTONICA:{event.mes}:a{numero}<a{anterior}"
+            )
+        ultimo_por_mes[event.mes] = max(numero, anterior or 0)
+    return validations
+
+
 def normalize_event_blocks(events: list[EventBlock]) -> tuple[list[EventBlock], list[str]]:
     normalized: list[EventBlock] = []
-    validations: list[str] = []
+    validations: list[str] = recover_titles_from_previous_event(events)
     for event in events:
         pieces, split_recovered = split_embedded_events(event)
         if split_recovered:
@@ -215,9 +367,11 @@ def normalize_event_blocks(events: list[EventBlock]) -> tuple[list[EventBlock], 
             recovered = recover_missing_event_title(piece)
             if recovered:
                 validations.append("OK_EVENT_TITLE_RECOVERED")
+            piece.titulo = normalize_titulo(piece.titulo)
             if not piece.titulo.strip():
                 validations.append("WARN_EVENT_TITLE_MISSING")
             normalized.append(piece)
+    validations.extend(validate_ordem_referencias(normalized))
     return normalized, list(dict.fromkeys(validations))
 
 

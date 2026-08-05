@@ -68,13 +68,22 @@ class EventFilterDecision:
 
 
 def classify_event(titulo: str, corpo: str = "") -> str:
-    text = _normalize(f"{titulo} {corpo}")
-    if "DECLARACAO DE BENEFICIARIO" in text or "BENEFICIARIO" in text:
+    # Categorias SENSIVEIS (filtraveis) sao decididas pelo TITULO: o assunto
+    # do evento e o que importa. Ordens administrativas que apenas MENCIONAM
+    # pagamento/beneficiarios no corpo (ex.: "CURSOS E ESTAGIOS" com clausula
+    # de indenizacao, "Conferencia da PHPM/CADBEN — Determinacao") permanecem
+    # na folha — mesma pratica das folhas curadas pela secretaria.
+    title = _normalize(titulo)
+    if "DECLARACAO DE BENEFICIARIO" in title or "BENEFICIARIO" in title:
         return EVENTO_BENEFICIARIO
-    if any(token in text for token in ("PAGAMENTO", "AUXILIO", "INDENIZACAO", "SALARIO")):
+    if any(
+        token in title
+        for token in ("PAGAMENTO", "AUXILIO", "INDENIZACAO", "SALARIO", "DESPESAS DE EXERCICIO")
+    ):
         return EVENTO_PAGAMENTO
-    if any(token in text for token in ("TERCEIRO", "DEPENDENTE", "PENSIONISTA")):
+    if any(token in title for token in ("TERCEIRO", "DEPENDENTE", "PENSIONISTA")):
         return EVENTO_TERCEIROS
+    text = _normalize(f"{titulo} {corpo}")
     if "TESTE DE AVALIACAO FISICA" in text or re.search(r"\bTAF\b", text):
         return EVENTO_TAF
     if "FERIAS" in text:

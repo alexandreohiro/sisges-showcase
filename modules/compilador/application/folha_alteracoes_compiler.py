@@ -39,6 +39,16 @@ from modules.compilador.application.odt_template_policy import (
     SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO,
     SISGES_FLAG_QMS,
     SISGES_FLAG_SEMESTRE_TEXTO,
+    SISGES_FLAG_TC,
+    SISGES_FLAG_TC_ARREG,
+    SISGES_FLAG_TC_INSTALACAO,
+    SISGES_FLAG_TC_NAO_ARREG,
+    SISGES_FLAG_TC_TRANSITO,
+    SISGES_FLAG_TNC,
+    SISGES_FLAG_TSCMM,
+    SISGES_FLAG_TSNR,
+    SISGES_FLAG_TSSD,
+    SISGES_FLAG_TTES,
     SISGES_HEADER_MARKER,
     SISGES_PRIMEIRA_PARTE_MARKER,
     SISGES_SEGUNDA_PARTE_MARKER,
@@ -519,26 +529,47 @@ def sisges_flag_values(
     period_label: str,
     options: CompilerOptions,
 ) -> dict[str, str]:
-    _ = (events, times)
+    _ = events
     assinatura_nome, assinatura_funcao = select_assinatura_for_options(profile, options)
     graduacao = profile.graduacao_extenso or profile.graduacao_abrev
     return {
-        SISGES_FLAG_NOME: escape(profile.nome_completo),
+        # Nome de guerra em negrito (regra da folha); exige o estilo de
+        # texto "Bold" no template — o parametrizador o garante.
+        SISGES_FLAG_NOME: nome_completo_xml(profile.nome_completo, profile.nome_guerra),
         SISGES_FLAG_GRADUACAO: escape(graduacao),
         SISGES_FLAG_QMS: escape(profile.qm),
         SISGES_FLAG_IDENTIDADE: escape(profile.identidade),
         SISGES_FLAG_SEMESTRE_TEXTO: escape(period_label),
         SISGES_FLAG_PERIODO: escape(periodo_curto(options)),
-        SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO: escape(graduacao.upper() if graduacao else ""),
+        # Anexo B da Port. 063-DGP/2020: "Continuação das Folhas de
+        # Alterações do...(P/G nome do militar)".
+        SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO: escape(
+            f"{graduacao} {profile.nome_completo}".upper().strip()
+        ),
         SISGES_FLAG_COMPORTAMENTO: comportamento_text(profile),
-        SISGES_FLAG_DATA_LOCAL: "Quartel-General do Exército – Brasília/DF, 1° de janeiro de 2026",
+        SISGES_FLAG_DATA_LOCAL: escape(data_local_text(options)),
         SISGES_FLAG_ASSINATURA_NOME: escape(assinatura_nome),
         SISGES_FLAG_ASSINATURA_FUNCAO: escape(assinatura_funcao),
+        # Valores da 2ª Parte na ordem do Art. 24; opcionais no template.
+        SISGES_FLAG_TC: escape(times.tc),
+        SISGES_FLAG_TC_ARREG: escape(times.tc_arreg),
+        SISGES_FLAG_TC_NAO_ARREG: escape(times.tc_nao_arreg),
+        SISGES_FLAG_TC_TRANSITO: escape(times.tc_transito),
+        SISGES_FLAG_TC_INSTALACAO: escape(times.tc_instalacao),
+        SISGES_FLAG_TNC: escape(times.tnc),
+        SISGES_FLAG_TSSD: escape(times.tssd),
+        SISGES_FLAG_TSCMM: escape(times.tscmm),
+        SISGES_FLAG_TSNR: escape(times.tsnr),
+        SISGES_FLAG_TTES: escape(times.ttes),
     }
 
 
 def periodo_curto(options: CompilerOptions) -> str:
     return "1º JAN A 30 JUN" if str(options.semestre).strip().startswith("1") else "1º JUL A 31 DEZ"
+
+
+def data_local_text(options: CompilerOptions) -> str:
+    return options.data_local or "Quartel-General do Exército – Brasília/DF, 1° de janeiro de 2026"
 
 
 def comportamento_text(profile: SicapexProfile) -> str:
@@ -560,7 +591,7 @@ def sisges_marker_values(
         SISGES_PRIMEIRA_PARTE_MARKER: first_part_xml(events, options),
         SISGES_COMPORTAMENTO_MARKER: comportamento_xml(profile),
         SISGES_SEGUNDA_PARTE_MARKER: second_part_xml(profile, times),
-        SISGES_ASSINATURA_MARKER: assinatura_xml(assinatura_nome, assinatura_funcao),
+        SISGES_ASSINATURA_MARKER: assinatura_xml(assinatura_nome, assinatura_funcao, data_local_text(options)),
     }
 
 
@@ -582,10 +613,10 @@ def header_xml(profile: SicapexProfile, period_label: str, options: CompilerOpti
     )
 
 
-def assinatura_xml(assinatura_nome: str, assinatura_funcao: str) -> str:
+def assinatura_xml(assinatura_nome: str, assinatura_funcao: str, data_local: str = "") -> str:
     return "".join(
         [
-            p("Quartel-General do Exército - Brasília/DF, 1º de janeiro de 2026", "Center"),
+            p(data_local or "Quartel-General do Exército - Brasília/DF, 1º de janeiro de 2026", "Center"),
             p("", "Center"),
             p("", "Center"),
             p(assinatura_nome, "Center"),
@@ -616,7 +647,7 @@ def template_placeholder_values(
         "{{SEGUNDA_PARTE}}": segunda,
         "{{ASSINATURA_NOME}}": escape(assinatura_nome),
         "{{ASSINATURA_FUNCAO}}": escape(assinatura_funcao),
-        "{{DATA_LOCAL}}": "Quartel-General do Exército – Brasília/DF, 1º de janeiro de 2026",
+        "{{DATA_LOCAL}}": escape(data_local_text(options)),
     }
 
 
@@ -744,7 +775,7 @@ def build_body_xml(
 
     lines.append(p("2ª PARTE", "Title"))
     lines.append(times_table_xml(times))
-    lines.append(p("Quartel-General do Exército – Brasília/DF, 1º de janeiro de 2026", "Center"))
+    lines.append(p(data_local_text(options), "Center"))
     lines.append(p("", "Center"))
     lines.append(p("", "Center"))
     lines.append(p(assinatura_nome, "Center"))

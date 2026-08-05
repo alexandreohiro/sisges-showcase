@@ -26,6 +26,7 @@ class CompilerOptions:
     assinatura_mode: str = "auto"
     assinatura_nome: str | None = None
     assinatura_funcao: str | None = None
+    data_local: str | None = None
 
 
 @dataclass(slots=True)

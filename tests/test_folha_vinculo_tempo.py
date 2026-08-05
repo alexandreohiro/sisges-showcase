@@ -297,3 +297,138 @@ def test_data_praca_divergente_do_evento_de_convocacao_gera_warn():
 
     profile.data_praca = INCORPORACAO
     assert validate_data_praca_against_events(profile, events) == []
+
+
+def test_data_de_legislacao_citada_nao_exclui_evento():
+    """RC2: "Portaria ... de 31 AGO 22" no corpo não tira o evento do período."""
+    events = [
+        EventBlock(
+            mes="NOVEMBRO",
+            titulo="",
+            referencia="- a 27, ADT S3 Nº 8 ao BI Nº 92 :",
+            corpo=(
+                "Não realizou as chamadas do 2º TAF/2025, conforme a "
+                "Portaria - EME/C Ex Nr 850, de 31 AGO 22, que aprova a Diretriz."
+            ),
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "2", ano=2025)
+
+    assert len(kept) == 1
+    assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+    assert any(item.startswith("WARN_EVENT_SEM_DATA") for item in validations)
+
+
+def test_datas_soltas_de_documentos_nao_excluem_evento():
+    """RC2: datas de terceiros/documentos antigos no corpo mantêm o evento, com WARN."""
+    events = [
+        EventBlock(
+            mes="DEZEMBRO",
+            titulo="ARMA DE FOGO - Transferência",
+            referencia="- a 4, BAR Nº 56 :",
+            corpo="Transferência autorizada; adquirente nascido em 26/10/1970, registro de 14/07/2022.",
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "2", ano=2025)
+
+    assert len(kept) == 1
+    assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+    assert any(item.startswith("WARN_EVENT_DATAS_FORA_DO_PERIODO") for item in validations)
+
+
+def test_data_de_acao_fora_do_periodo_exclui_evento():
+    """RC2: "Apresentou-se em <data fora>" é data de ação e exclui o evento."""
+    events = [
+        EventBlock(
+            mes="JANEIRO",
+            titulo="APRESENTACAO",
+            referencia="- a 2, BI Nº 5 :",
+            corpo="Apresentou-se em 15/01/2024 a militar para o servico.",
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "1", ano=2023)
+
+    assert kept == []
+    assert any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+
+
+def test_data_de_acao_no_periodo_prevalece_sobre_datas_soltas():
+    """RC2: ação dentro do período mantém o evento mesmo com datas antigas soltas."""
+    events = [
+        EventBlock(
+            mes="SETEMBRO",
+            titulo="APRESENTACAO",
+            referencia="- a 12, BI Nº 70 :",
+            corpo=(
+                "Conforme documento registrado em 14/07/2022, "
+                "apresentou-se em 20/09/2025 a militar para o servico."
+            ),
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "2", ano=2025)
+
+    assert len(kept) == 1
+    assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+
+
+def test_modo_transcricao_mantem_publicacao_atrasada_com_warn():
+    """strict=False (folha curada): fato de dezembro publicado em janeiro fica, com WARN."""
+    events = [
+        EventBlock(
+            mes="JANEIRO",
+            titulo="APRESENTACAO - POR TERMINO DE FERIAS",
+            referencia="- a 3, BI Nº 2 :",
+            corpo="Apresentou-se em 26/12/2025 por termino de ferias.",
+        )
+    ]
+
+    kept, validations = normalize_semester_events(events, "1", ano=2026, strict=False)
+
+    assert len(kept) == 1
+    assert not any(item.startswith("ERR_EVENT_FORA_DO_PERIODO") for item in validations)
+    assert any(item.startswith("WARN_EVENT_ACAO_FORA_DO_PERIODO") for item in validations)
+
+
+def test_extracao_pdf_para_na_segunda_parte(tmp_path):
+    """A 2ª Parte e a assinatura do PDF não podem virar corpo de evento."""
+    from modules.compilador.application.folha_extraction import extract_events_from_bi_pdf
+
+    class _FakePdfPage:
+        def __init__(self, text):
+            self._text = text
+
+        def extract_text(self):
+            return self._text
+
+    texto = "\n".join(
+        [
+            "JUNHO:",
+            "FOLHAS DE ALTERACOES - Entrega",
+            "- a 30, BI Nº 47 :",
+            "Foi entregue no mes de JUNHO 26 as Folhas de Alteracoes.",
+            "Comportamento: EXCEPCIONAL",
+            "2ª PARTE",
+            "1. TEMPO COMPUTADO DE EFETIVO SERVIÇO (TC) .... 00 a 06 m 00 d",
+            "FULANO DE TAL - Cel",
+            "S Cmt B Adm QGEx",
+        ]
+    )
+
+    import modules.compilador.application.folha_extraction as fx
+
+    original = fx.extract_pdf_text
+    fx.extract_pdf_text = lambda _path: texto
+    try:
+        events = extract_events_from_bi_pdf(Path("/nao/existe.pdf"), CompilerOptions(ano=2026, semestre="1"))
+    finally:
+        fx.extract_pdf_text = original
+
+    assert len(events) == 1
+    assert "2ª PARTE" not in events[0].corpo
+    assert "TEMPO COMPUTADO" not in events[0].corpo
+    assert "Comportamento" not in events[0].corpo
+    assert "Cel" not in events[0].corpo

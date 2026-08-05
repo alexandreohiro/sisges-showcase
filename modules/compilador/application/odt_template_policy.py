@@ -33,6 +33,33 @@ SISGES_FLAG_DATA_LOCAL = "[SISGES_DATA_LOCAL]"
 SISGES_FLAG_ASSINATURA_NOME = "[SISGES_ASSINATURA_NOME]"
 SISGES_FLAG_ASSINATURA_FUNCAO = "[SISGES_ASSINATURA_FUNCAO]"
 
+# Flags OPCIONAIS de valores da 2ª Parte (Art. 24). Templates com a tabela
+# de tempos própria usam estes tokens nas células de valor; templates sem
+# eles seguem válidos (não entram em REQUIRED_SISGES_FLAGS).
+SISGES_FLAG_TC = "[SISGES_TC]"
+SISGES_FLAG_TC_ARREG = "[SISGES_TC_ARREG]"
+SISGES_FLAG_TC_NAO_ARREG = "[SISGES_TC_NAO_ARREG]"
+SISGES_FLAG_TC_TRANSITO = "[SISGES_TC_TRANSITO]"
+SISGES_FLAG_TC_INSTALACAO = "[SISGES_TC_INSTALACAO]"
+SISGES_FLAG_TNC = "[SISGES_TNC]"
+SISGES_FLAG_TSSD = "[SISGES_TSSD]"
+SISGES_FLAG_TSCMM = "[SISGES_TSCMM]"
+SISGES_FLAG_TSNR = "[SISGES_TSNR]"
+SISGES_FLAG_TTES = "[SISGES_TTES]"
+
+TIME_VALUE_FLAGS = (
+    SISGES_FLAG_TC,
+    SISGES_FLAG_TC_ARREG,
+    SISGES_FLAG_TC_NAO_ARREG,
+    SISGES_FLAG_TC_TRANSITO,
+    SISGES_FLAG_TC_INSTALACAO,
+    SISGES_FLAG_TNC,
+    SISGES_FLAG_TSSD,
+    SISGES_FLAG_TSCMM,
+    SISGES_FLAG_TSNR,
+    SISGES_FLAG_TTES,
+)
+
 REQUIRED_SISGES_MARKERS = (
     SISGES_HEADER_MARKER,
     SISGES_PRIMEIRA_PARTE_MARKER,
@@ -180,7 +207,9 @@ def odt_has_sisges_marker_in_styles(styles_xml: str) -> bool:
 # ---------------------------------------------------------------------------
 
 MASTER_STYLES_PATTERN = re.compile(r"<office:master-styles>.*?</office:master-styles>", re.S)
-HEADER_TEXT_P_PATTERN = re.compile(r"(<text:p\b[^>]*>)(.*?)(</text:p>)", re.S)
+# (?<!/) exclui <text:p/> auto-fechado: sem isso o paragrafo vazio "engole"
+# o paragrafo seguinte na substituicao e corrompe o XML.
+HEADER_TEXT_P_PATTERN = re.compile(r"(<text:p\b[^>]*(?<!/)>)(.*?)(</text:p>)", re.S)
 SEMESTER_HEADER_PATTERN = re.compile(r"[12]\s*[ºo°]?\s*SEMESTRE\s+DE\s+\d{4}", re.I)
 PERIODO_HEADER_PATTERN = re.compile(
     r"PER[IÍ]ODO:\s*1\s*[ºo°]?\s*(?:JAN\w*\.?|JUL\w*\.?)\s*A\s*3[01]\s*(?:JUN\w*\.?|DEZ\w*\.?)",
@@ -190,6 +219,13 @@ CONTINUATION_MARKER_PATTERN = re.compile(r"CONTINUA[ÇC][ÃA]O", re.I)
 CONTINUATION_RANK_PATTERN = re.compile(
     r"\b(SUBTENENTE|PRIMEIRO-SARGENTO|SEGUNDO-SARGENTO|TERCEIRO-SARGENTO|CABO|SOLDADO|"
     r"ASPIRANTE|PRIMEIRO-TENENTE|SEGUNDO-TENENTE|CAPIT[ÃA]O|MAJOR|TENENTE-CORONEL|CORONEL)\b",
+    re.I,
+)
+# Placeholder literal usado nos modelos novos da OM, seguindo o Anexo B
+# ("do...(P/G nome do militar)").
+CONTINUATION_PLACEHOLDER_PATTERN = re.compile(
+    r"^\(?\s*(P\s*/\s*G|POSTO\s*/?\s*GRADUA[ÇC][ÃA]O|GRADUA[ÇC][ÃA]O)\s+NOME"
+    r"(\s+(COMPLETO|DO\s+MILITAR))?\s*\)?\s*$",
     re.I,
 )
 
@@ -217,10 +253,13 @@ def inject_continuation_header_flags(styles_xml: str) -> tuple[str, list[str]]:
 
     changed = False
 
+    previous_plain = [""]
+
     def rewrite_paragraph(match: re.Match) -> str:
         nonlocal changed
         opening, inner, closing = match.groups()
         if "[SISGES_" in inner:
+            previous_plain[0] = _plain_paragraph_text(inner)
             return match.group(0)
         plain = _plain_paragraph_text(inner)
         new_plain = plain
@@ -228,10 +267,20 @@ def inject_continuation_header_flags(styles_xml: str) -> tuple[str, list[str]]:
             new_plain = SEMESTER_HEADER_PATTERN.sub(SISGES_FLAG_SEMESTRE_TEXTO, new_plain)
         if PERIODO_HEADER_PATTERN.search(new_plain):
             new_plain = PERIODO_HEADER_PATTERN.sub(f"PERÍODO: {SISGES_FLAG_PERIODO}", new_plain)
-        if CONTINUATION_MARKER_PATTERN.search(plain) and CONTINUATION_RANK_PATTERN.search(new_plain):
-            new_plain = CONTINUATION_RANK_PATTERN.sub(
-                SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO, new_plain
-            )
+        # Linha de identificacao da continuacao (Anexo B: "do...(P/G nome do
+        # militar)"): aceita o placeholder literal dos modelos novos, ou o
+        # posto estatico (com eventual nome apos ele) no proprio paragrafo
+        # ou no seguinte ao "Continuação das Folhas de Alterações".
+        after_continuation = bool(CONTINUATION_MARKER_PATTERN.search(previous_plain[0]))
+        if CONTINUATION_PLACEHOLDER_PATTERN.match(new_plain.strip()):
+            new_plain = SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO
+        elif (
+            CONTINUATION_MARKER_PATTERN.search(plain) or after_continuation
+        ) and CONTINUATION_RANK_PATTERN.search(new_plain):
+            rank_match = CONTINUATION_RANK_PATTERN.search(new_plain)
+            # Engole o rank e tudo apos ele (nome estatico de exemplo).
+            new_plain = new_plain[: rank_match.start()] + SISGES_FLAG_POSTO_GRADUACAO_CONTINUACAO
+        previous_plain[0] = plain
         if new_plain == plain:
             return match.group(0)
         changed = True

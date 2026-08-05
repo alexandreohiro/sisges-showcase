@@ -216,7 +216,7 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
     def flush_event() -> None:
         nonlocal current_event
         if current_event:
-            current_event.corpo = normalize_space(current_event.corpo)
+            current_event.corpo = current_event.corpo.strip()
             events.append(current_event)
             current_event = None
 
@@ -224,10 +224,29 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
         line = clean_noise(normalize_space(raw_line))
         if not line:
             continue
+        # Fim da 1a Parte: a 2a Parte (tempos) e a assinatura NAO sao
+        # eventos — sem este corte elas viram corpo do ultimo evento.
+        if re.match(r"^2\s*ª?\s*PARTE\b", line, re.I):
+            flush_event()
+            break
+        if re.match(r"^Comportamento:\s*\S+$", line, re.I):
+            # Metadado do perfil (vem imediatamente antes da 2a Parte).
+            continue
         month = normalize_month(line.rstrip(":"))
         if month in semester_months(options.semestre):
             flush_event()
             current_month = month
+            pending_title = ""
+            continue
+        # "MÊS: Sem Alteração(ões)." e marcador de mes vazio da folha de
+        # referencia — consome a secao sem gerar evento nem corpo (o
+        # contrato de formato reemite o texto padrao no render).
+        empty_month = re.match(
+            r"^([A-ZÇÀ-Ü]+):\s*Sem\s+Altera[çc][ãa]o(?:es|ões)?\.?$", line, re.I
+        )
+        if empty_month and normalize_month(empty_month.group(1)) in semester_months(options.semestre):
+            flush_event()
+            current_month = normalize_month(empty_month.group(1))
             pending_title = ""
             continue
         if REFERENCE_PATTERN.match(line):
@@ -241,9 +260,14 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
             pending_title = ""
             continue
         if current_event:
-            current_event.corpo = f"{current_event.corpo} {line}".strip()
+            # Preserva a estrutura de linhas: e o que permite ao
+            # normalize_event_blocks recuperar titulos que cairam no corpo
+            # do evento anterior (quebras de pagina do PDF).
+            current_event.corpo = f"{current_event.corpo}\n{line}".strip()
         elif current_month:
-            pending_title = line
+            # Titulos longos quebram em varias linhas no PDF; acumula ate
+            # aparecer a referencia (mesma regra do extrator de ODT).
+            pending_title = line if not pending_title else f"{pending_title} {line}"
     flush_event()
     return events
 

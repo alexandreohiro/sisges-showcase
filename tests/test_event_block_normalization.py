@@ -16,7 +16,7 @@ def test_recovers_title_glued_to_body():
         ]
     )
 
-    assert events[0].titulo == "TESTE DE AVALIACAO FISICA - Resultado"
+    assert events[0].titulo == "TESTE DE AVALIACAO FISICA – Resultado"  # travessão normalizado
     assert "Militar realizou o TAF." in events[0].corpo
     assert "OK_EVENT_TITLE_RECOVERED" in validations
 
@@ -39,7 +39,7 @@ def test_splits_body_when_next_title_and_reference_are_found():
     )
 
     assert len(events) == 2
-    assert events[1].titulo == "TESTE DE AVALIACAO FISICA - Resultado"
+    assert events[1].titulo == "TESTE DE AVALIACAO FISICA – Resultado"  # travessão normalizado
     assert events[1].referencia == "- a 2, BI Nº 2 :"
     assert "OK_EVENT_BODY_SPLIT_RECOVERED" in validations
 

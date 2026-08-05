@@ -33,6 +33,19 @@ NOISE_FRAGMENTS = [
     "PERIODO: 01/07/2025 a 31/12/2025",
 ]
 
+# Cabecalhos de pagina que vazam para o corpo dos eventos em PDFs de
+# folhas de referencia — genericos (qualquer semestre/ano/militar).
+NOISE_LINE_PATTERNS = [
+    re.compile(r"(CP:\s*)?PER[IÍ]ODO:?\s*\d{2}/\d{2}/\d{4}\s*a\s*\d{2}/\d{2}/\d{4}", re.I),
+    re.compile(r"[12]\s*[ºo°]\s*Semestre\s+de\s+\d{4}", re.I),
+    re.compile(r"FOLHA\s*N[ºo°]\s*\d+", re.I),
+    re.compile(
+        r"^\d{0,4}\s*do\s+(S\s*Ten|Sub\s*Ten|1[ºo°]\s*Sgt|2[ºo°]\s*Sgt|3[ºo°]\s*Sgt|Cb|Sd|"
+        r"Asp|1[ºo°]\s*Ten|2[ºo°]\s*Ten|Cap|Maj|Ten\s*Cel|Cel)\b[^:]*$",
+        re.I,
+    ),
+]
+
 
 def period_bounds(ano: int, semestre: str) -> tuple[date, date, str]:
     if str(semestre).strip().startswith("1"):
@@ -133,6 +146,8 @@ def normalize_space(value: str) -> str:
 
 def clean_noise(line: str) -> str:
     result = line
+    for pattern in NOISE_LINE_PATTERNS:
+        result = pattern.sub("", result)
     for fragment in NOISE_FRAGMENTS:
         result = result.replace(fragment, "")
     return normalize_space(result)
