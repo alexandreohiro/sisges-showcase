@@ -238,6 +238,17 @@ def extract_events_from_bi_pdf(path: Path, options: CompilerOptions) -> list[Eve
             current_month = month
             pending_title = ""
             continue
+        # "MÊS: Sem Alteração(ões)." e marcador de mes vazio da folha de
+        # referencia — consome a secao sem gerar evento nem corpo (o
+        # contrato de formato reemite o texto padrao no render).
+        empty_month = re.match(
+            r"^([A-ZÇÀ-Ü]+):\s*Sem\s+Altera[çc][ãa]o(?:es|ões)?\.?$", line, re.I
+        )
+        if empty_month and normalize_month(empty_month.group(1)) in semester_months(options.semestre):
+            flush_event()
+            current_month = normalize_month(empty_month.group(1))
+            pending_title = ""
+            continue
         if REFERENCE_PATTERN.match(line):
             flush_event()
             current_event = EventBlock(

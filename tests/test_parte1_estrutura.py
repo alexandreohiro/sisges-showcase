@@ -44,3 +44,34 @@ def test_ordem_de_referencias_monotonica_por_mes():
     warns = validate_ordem_referencias(quebrada)
     assert len(warns) == 1
     assert warns[0].startswith("WARN_ORDEM_EVENTOS_NAO_MONOTONICA:JANEIRO")
+
+
+def test_mes_vazio_da_referencia_nao_vira_corpo(tmp_path):
+    """"ABRIL: Sem Alteração" do PDF é marcador de seção, não texto de evento."""
+    from pathlib import Path
+
+    import modules.compilador.application.folha_extraction as fx
+    from modules.compilador.application.folha_extraction import extract_events_from_bi_pdf
+    from modules.compilador.application.folha_models import CompilerOptions
+
+    texto = "\n".join(
+        [
+            "MARÇO:",
+            "APRESENTACAO – POR TÉRMINO DE FÉRIAS",
+            "- a 26, BI Nº 24 :",
+            "Apresentou-se em 23 MAR 26, pronto para o serviço.",
+            "ABRIL: Sem Alteração",
+            "MAIO: Sem Alteração",
+            "JUNHO: Sem Alteração",
+        ]
+    )
+    original = fx.extract_pdf_text
+    fx.extract_pdf_text = lambda _p: texto
+    try:
+        events = extract_events_from_bi_pdf(Path("/x.pdf"), CompilerOptions(ano=2026, semestre="1"))
+    finally:
+        fx.extract_pdf_text = original
+
+    assert len(events) == 1
+    assert "Sem Alteração" not in events[0].corpo
+    assert "ABRIL" not in events[0].corpo
